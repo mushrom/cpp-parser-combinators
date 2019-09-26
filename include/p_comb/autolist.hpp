@@ -21,19 +21,6 @@ class autolist {
 			return data;
 		}
 
-		ptr join(ptr other) {
-			return ptr(new autolist<T>(
-				[=] () {
-					// sanity check
-					if (!this) return other;
-
-					ptr foo = next();
-
-					return foo? foo->join(other) : other;
-				},
-				data));
-		}
-
 		ptr next(void) {
 			// TODO: locking for thread safety
 			if (!have_cached) {
@@ -42,6 +29,20 @@ class autolist {
 			}
 
 			return cached_next;
+		}
+
+		ptr take(unsigned n) {
+			if (n == 0) {
+				return nullptr;
+			}
+
+			return ptr(new autolist<T>(
+				[=] () {
+					ptr foo = next();
+					return foo? foo->take(n - 1) : nullptr;
+				},
+				data
+			));
 		}
 
 		T data;

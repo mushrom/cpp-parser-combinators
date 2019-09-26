@@ -5,11 +5,7 @@
 
 namespace p_comb {
 
-class token {
-	public:
-		uint32_t type;
-		std::string data;
-};
+typedef uint32_t token;
 
 autolist<token>::ptr
 make_token_stream(autolist<char>::ptr cstream) {
@@ -19,15 +15,25 @@ make_token_stream(autolist<char>::ptr cstream) {
 
 	autolist<char>::ptr next = cstream->next();
 
-	token foo;
-	foo.type = (char)*cstream;
-	foo.data = (char)*cstream;
+	token foo = (char)*cstream;
 
 	return autolist<token>::ptr(
 		new autolist<token>(
 			[=] () { return make_token_stream(next); },
 			foo)
 		);
+}
+
+// TODO: can we template this?
+autolist<token>::ptr operator+(autolist<token>::ptr a, autolist<token>::ptr b) {
+	if (a && b) {
+		return autolist<token>::ptr(new autolist<token>(
+			[=] () { return a->next() + b; },
+			a->data
+		));
+	}
+
+	else return a? a : b;
 }
 
 // namespace p_comb

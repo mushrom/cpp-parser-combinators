@@ -1,4 +1,4 @@
-CXXFLAGS = -I./include -O0 -Wall -g
+CXXFLAGS = -I./include -O0 -Wall -ggdb
 SRC = $(wildcard src/*.cpp)
 OBJ = $(SRC:.cpp=.o)
 
