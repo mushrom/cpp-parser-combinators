@@ -1,81 +1,38 @@
 #pragma once
 
 #include <p_comb/autolist.hpp>
-#include <p_comb/tokenizer.hpp>
 #include <functional>
+#include <list>
 
 namespace p_comb {
 
+typedef struct token {
+	std::list<token> tokens;
+	char data = 0;
+} token;
+
 struct result {
-	autolist<token>::ptr next;
-	autolist<token>::ptr tokens;
+	autolist<char>::ptr next;
+	token tokens;
 	bool matched = false;
 };
 
-#define RESULT_NO_MATCH ((struct result) { nullptr, nullptr, false, })
+#define RESULT_NO_MATCH ((struct result) { nullptr, {{}, 0}, false, })
 
-typedef std::function<struct result (autolist<token>::ptr)> parser;
+typedef std::function<struct result (autolist<char>::ptr)> parser;
 
-parser make_string_const_parser(std::string str) {
-	return [=] (autolist<token>::ptr ptr) {
-		auto temp = ptr;
+parser string_parser(std::string str);
 
-		for (unsigned i = 0; i < str.size(); i++) {
-			if (!temp || temp->data != str[i]) {
-				return RESULT_NO_MATCH;
-			}
+parser operator+(parser a, parser b);
+parser operator|(parser a, parser b);
+parser operator+(std::string a, parser b);
+parser operator+(parser a, std::string b);
+parser operator|(std::string a, parser b);
+parser operator|(parser a, std::string b);
 
-			temp = temp->next();
-		}
-
-		return (struct result) {
-			temp,
-			ptr->take(str.size()),
-			true,
-		};
-	};
-}
-
-parser operator+(parser a, parser b) {
-	return [=] (autolist<token>::ptr ptr) {
-		struct result first, second, ret;
-
-		if (!ptr) return ret;
-
-		first = a(ptr);
-
-		if (!first.matched) {
-			return ret;
-		}
-
-		second = b(first.next);
-		ret.next = second.next;
-		ret.tokens = first.tokens + second.tokens;
-		ret.matched = first.matched && second.matched;
-
-		return ret;
-	};
-}
-
-parser operator|(parser a, parser b) {
-	return [=] (autolist<token>::ptr ptr) {
-		struct result foo = a(ptr);
-
-		if (foo.matched) {
-			return foo;
-		}
-
-		return b(ptr);
-	};
-}
-
-parser operator+(std::string a, parser b) {
-	return make_string_const_parser(a) + b;
-}
-
-parser operator+(parser a, std::string b) {
-	return a + make_string_const_parser(b);
-}
+parser one_or_more(parser p);
+parser zero_or_more(parser p);
+parser zero_or_one(parser p);
 
 // namespace p_comb
 }

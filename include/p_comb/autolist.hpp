@@ -31,20 +31,6 @@ class autolist {
 			return cached_next;
 		}
 
-		ptr take(unsigned n) {
-			if (n == 0) {
-				return nullptr;
-			}
-
-			return ptr(new autolist<T>(
-				[=] () {
-					ptr foo = next();
-					return foo? foo->take(n - 1) : nullptr;
-				},
-				data
-			));
-		}
-
 		T data;
 
 	private:
@@ -53,19 +39,7 @@ class autolist {
 		bool have_cached = false;
 };
 
-autolist<char>::ptr make_fstream(FILE *fp) {
-	char c = fgetc(fp);
-
-	if (feof(fp)) {
-		return nullptr;
-	}
-
-	return autolist<char>::ptr(
-		new autolist<char>(
-			[=] () { return make_fstream(fp); },
-			c)
-		);
-}
+autolist<char>::ptr make_fstream(FILE *fp);
 
 // namespace p_comb
 }
