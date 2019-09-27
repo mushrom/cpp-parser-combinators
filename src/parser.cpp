@@ -10,7 +10,7 @@ parser one_or_more(parser p) {
 		}
 
 		struct result res;
-		token ret;
+		std::list<token> ret;
 		autolist<char>::ptr end = ptr;
 		autolist<char>::ptr last = ptr;
 		unsigned i = 0;
@@ -22,7 +22,7 @@ parser one_or_more(parser p) {
 			i += res.matched;
 
 			if (res.matched) {
-				ret.tokens.push_back(res.tokens);
+				ret.splice(ret.end(), res.tokens);
 			}
 		} while (res.matched);
 
@@ -43,7 +43,7 @@ parser zero_or_more(parser p) {
 		}
 
 		struct result res;
-		token ret;
+		std::list<token> ret;
 		autolist<char>::ptr end = ptr;
 		autolist<char>::ptr last = ptr;
 		unsigned i = 0;
@@ -55,7 +55,7 @@ parser zero_or_more(parser p) {
 			i += res.matched;
 
 			if (res.matched) {
-				ret.tokens.push_back(res.tokens);
+				ret.splice(ret.end(), res.tokens);
 			}
 		} while (res.matched);
 
@@ -71,7 +71,7 @@ parser zero_or_one(parser p) {
 
 		struct result res = p(ptr);
 
-		return res.matched? res : (struct result){ ptr, {{}, 0}, true};
+		return res.matched? res : (struct result){ ptr, {}, true};
 	};
 }
 
@@ -80,10 +80,22 @@ parser ignore(parser p) {
 		struct result foo = p(ptr);
 
 		// return result info, except for any returned tokens.
-		return (struct result){ foo.next, {{}, 0}, foo.matched };
+		return (struct result){ foo.next, {}, foo.matched };
 	};
 }
 
+parser tag(std::string type, parser p) {
+	return [=] (autolist<char>::ptr ptr) {
+		struct result foo = p(ptr);
+
+		token tok;
+		tok.tag = type;
+		tok.tokens = foo.tokens;
+
+		foo.tokens = {tok};
+		return foo;
+	};
+}
 
 parser string_parser(std::string str) {
 	return [=] (autolist<char>::ptr ptr) {
@@ -108,11 +120,15 @@ parser string_parser(std::string str) {
 		// string lists, when we just about always want the character itself
 		// to be a single return token
 		if (str.size() > 1) {
-			return (struct result){ temp, {tok, 's'}, true, };
+			token foo;
+			foo.tag = "string-literal";
+			foo.tokens = tok;
+
+			return (struct result){ temp, {foo}, true, };
 		}
 
 		else {
-			return (struct result){ temp, {{}, str[0]}, true, };
+			return (struct result){ temp, tok, true, };
 		}
 	};
 }
@@ -131,8 +147,8 @@ parser operator+(parser a, parser b) {
 
 		second = b(first.next);
 		ret.next = second.next;
-		ret.tokens.tokens.push_back(first.tokens);
-		ret.tokens.tokens.push_back(second.tokens);
+		first.tokens.splice(first.tokens.end(), second.tokens);
+		ret.tokens = first.tokens;
 		ret.matched = first.matched && second.matched;
 
 		return ret;
