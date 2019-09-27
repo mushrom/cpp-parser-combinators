@@ -75,6 +75,16 @@ parser zero_or_one(parser p) {
 	};
 }
 
+parser ignore(parser p) {
+	return [=] (autolist<char>::ptr ptr) {
+		struct result foo = p(ptr);
+
+		// return result info, except for any returned tokens.
+		return (struct result){ foo.next, {{}, 0}, foo.matched };
+	};
+}
+
+
 parser string_parser(std::string str) {
 	return [=] (autolist<char>::ptr ptr) {
 		auto temp = ptr;
@@ -94,11 +104,16 @@ parser string_parser(std::string str) {
 			tok.push_back({{}, str[i]});
 		}
 
-		return (struct result) {
-			temp,
-			{tok, 's'},
-			true,
-		};
+		// avoid cluttering the token tree with single-character
+		// string lists, when we just about always want the character itself
+		// to be a single return token
+		if (str.size() > 1) {
+			return (struct result){ temp, {tok, 's'}, true, };
+		}
+
+		else {
+			return (struct result){ temp, {{}, str[0]}, true, };
+		}
 	};
 }
 

@@ -33,6 +33,7 @@ parser operator|(parser a, std::string b);
 parser one_or_more(parser p);
 parser zero_or_more(parser p);
 parser zero_or_one(parser p);
+parser ignore(parser p);
 
 // namespace p_comb
 }
