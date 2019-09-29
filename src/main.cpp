@@ -3,39 +3,7 @@
 
 using namespace p_comb;
 
-parser whitespace_char = string_parser(" ")|"\t"|"\v"|"\n"|"\r"|"\a";
-parser whitespace = one_or_more(whitespace_char);
-parser ignore_whitespace = ignore(zero_or_more(whitespace_char));
-
-// use >> as a whitespace-ignoring concatenative operator
-parser operator>>(parser a, parser b) {
-	return a + ignore_whitespace + b;
-}
-
-parser operator>>(std::string a, parser b) {
-	return string_parser(a) + ignore_whitespace + b;
-}
-
-parser operator>>(parser a, std::string b) {
-	return a + ignore_whitespace + string_parser(b);
-}
-
-parser digit = string_parser("0") | "1" | "2"
-             | "3" | "4" | "5" | "6"
-             | "7" | "8" | "9";
-
-parser number = tag("number", one_or_more(digit));
-
-parser lowercase = string_parser("a")|"b"|"c"|"d"|"e"|"f"|"g"|"h"
-                 |"i"|"j"|"k"|"l"|"m"|"n"|"o"|"p"|"q"|"r"|"s"|"t"
-                 |"u"|"v"|"w"|"x"|"y"|"z";
-
-parser uppercase = string_parser("A")|"B"|"C"|"D"|"E"|"F"|"G"|"H"
-                 |"I"|"J"|"K"|"L"|"M"|"N"|"O"|"P"|"Q"|"R"|"S"|"T"
-                 |"U"|"V"|"W"|"X"|"Y"|"Z";
-
-parser letter = lowercase | uppercase;
-
+// little expression test parser
 parser op = string_parser("+") | "-" | "*" | "/";
 parser identifier = tag("identifier", letter + zero_or_more(letter | digit | "_"));
 
@@ -55,7 +23,44 @@ parser expression_list =
 					+ ignore_whitespace))
 			>> "]");
 
-parser assignment = tag("assignment", identifier >> "=" >> expression_list >> ";");
+parser assignment = tag("assignment",
+	whitewrap(identifier >> "=" >> expression_list >> ";"));
+
+// SGF parser
+parser prop_string = tag("string",
+	one_or_more(string_parser("\\]") | "\\\\" | "\\:" | blacklist("]")));
+
+parser prop_real = tag("real",
+	(one_or_more(digit) + "." + one_or_more(digit))
+	| (one_or_more(digit) + ".")
+	| ("." + one_or_more(digit)));
+
+parser prop_stone = tag("stone", letter + letter);
+
+parser prop_value = tag("prop-value",
+	whitewrap(
+		("[" >>  prop_real >> "]")
+		| ("[" >>  number >> "]")
+		| ("[" >>  prop_stone >> "]")
+		| ("[" >>  prop_string >> "]")
+		// todo: "None" type
+	));
+
+parser prop_ident = tag("prop-ident", whitewrap(one_or_more(letter)));
+parser property = tag("property", whitewrap(prop_ident >> one_or_more(prop_value)));
+
+parser node = tag("node",
+		whitewrap(";" >> zero_or_more(property)));
+
+parser sequence = tag("sequence", one_or_more(node));
+
+struct result game_tree(autolist<char>::ptr ptr) {
+	parser temp = whitewrap("(" >> sequence >> zero_or_more(game_tree) >> ")");
+
+	return tag("game-tree", temp)(ptr);
+}
+
+parser SGF_collection = tag("collection", one_or_more(game_tree));
 
 void dump_tokens(std::list<token>& tokens, unsigned indent = 0) {
 	for (auto& tok : tokens) {
@@ -76,14 +81,30 @@ void dump_tokens(std::list<token>& tokens, unsigned indent = 0) {
 }
 
 int main(void) {
-	struct result meh = assignment(make_fstream(stdin));
+	struct result meh = SGF_collection(make_fstream(stdin));
+	dump_tokens(meh.tokens);
 
 	if (meh.matched) {
-		puts("parser tokens:");
-		dump_tokens(meh.tokens);
+		puts("successfully matched.");
 
 	} else {
-		puts("no matches.");
+		puts("didn't match.");
+		puts("debug stack:");
+
+		for (auto& dbg : meh.debug) {
+			printf(" => ");
+			auto temp = dbg;
+
+			for (unsigned i = 0; i < 30 && temp; i++, temp = temp->next()) {
+				if (temp->data == '\n') {
+					printf("(\\n)");
+				} else {
+					printf("%c", temp->data);
+				}
+			}
+
+			printf("\n");
+		}
 	}
 
 	return 0;

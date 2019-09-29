@@ -32,7 +32,14 @@ parser one_or_more(parser p) {
 			return (struct result) { last, ret, true, };
 		}
 
-		return RESULT_NO_MATCH;
+		//return RESULT_NO_MATCH;
+		//return (struct result) { last, ret, false, };
+
+		// if we get here, we failed on the first match, so we can
+		// reuse the result struct here since the 'last' pointer should
+		// still be the same
+		res.debug.push_back(ptr);
+		return res;
 	};
 }
 
@@ -80,7 +87,7 @@ parser ignore(parser p) {
 		struct result foo = p(ptr);
 
 		// return result info, except for any returned tokens.
-		return (struct result){ foo.next, {}, foo.matched };
+		return (struct result){ foo.next, {}, foo.matched, foo.debug };
 	};
 }
 
@@ -93,6 +100,7 @@ parser tag(std::string type, parser p) {
 		tok.tokens = foo.tokens;
 
 		foo.tokens = {tok};
+		foo.debug.push_back(ptr);
 		return foo;
 	};
 }
@@ -103,7 +111,7 @@ parser string_parser(std::string str) {
 
 		for (unsigned i = 0; i < str.size(); i++) {
 			if (!temp || temp->data != str[i]) {
-				return RESULT_NO_MATCH;
+				return (struct result){temp, {}, false, {temp}};
 			}
 
 			temp = temp->next();
@@ -133,6 +141,29 @@ parser string_parser(std::string str) {
 	};
 }
 
+parser blacklist(std::string blacklist) {
+	return [=] (autolist<char>::ptr ptr) {
+		if (!ptr) {
+			return RESULT_NO_MATCH;
+		}
+
+		for (char c : blacklist) {
+			if (c == ptr->data) {
+				return (struct result) { ptr, {}, false };
+			}
+		}
+
+		token tok;
+		tok.data = ptr->data;
+
+		return (struct result) { ptr->next(), {tok}, true, };
+	};
+}
+
+parser whitewrap(parser a) {
+	return ignore_whitespace + a + ignore_whitespace;
+}
+
 parser operator+(parser a, parser b) {
 	return [=] (autolist<char>::ptr ptr) {
 		struct result first, second, ret;
@@ -142,7 +173,8 @@ parser operator+(parser a, parser b) {
 		first = a(ptr);
 
 		if (!first.matched) {
-			return ret;
+			//first.debug.push_back(ptr);
+			return first;
 		}
 
 		second = b(first.next);
@@ -150,6 +182,11 @@ parser operator+(parser a, parser b) {
 		first.tokens.splice(first.tokens.end(), second.tokens);
 		ret.tokens = first.tokens;
 		ret.matched = first.matched && second.matched;
+
+		if (!ret.matched) {
+			ret.debug = second.debug;
+			ret.debug.push_back(first.next);
+		}
 
 		return ret;
 	};
@@ -181,6 +218,19 @@ parser operator|(std::string a, parser b) {
 
 parser operator|(parser a, std::string b) {
 	return a | string_parser(b);
+}
+
+// use >> as a whitespace-ignoring concatenative operator
+parser operator>>(parser a, parser b) {
+	return a + ignore_whitespace + b;
+}
+
+parser operator>>(std::string a, parser b) {
+	return string_parser(a) + ignore_whitespace + b;
+}
+
+parser operator>>(parser a, std::string b) {
+	return a + ignore_whitespace + string_parser(b);
 }
 
 // namespace p_comb
