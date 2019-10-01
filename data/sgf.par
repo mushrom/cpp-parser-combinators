@@ -1,0 +1,46 @@
+# SGF parser
+
+# TODO: export some basic rules so we don't have to redefine
+#       everything in every grammar file...
+lowercase = "a"|"b"|"c"|"d"|"e"|"f"|"g"|"h"
+          | "i"|"j"|"k"|"l"|"m"|"n"|"o"|"p"|"q"|"r"|"s"|"t"
+          | "u"|"v"|"w"|"x"|"y"|"z";
+
+uppercase = "A"|"B"|"C"|"D"|"E"|"F"|"G"|"H"
+          | "I"|"J"|"K"|"L"|"M"|"N"|"O"|"P"|"Q"|"R"|"S"|"T"
+          | "U"|"V"|"W"|"X"|"Y"|"Z";
+
+whitespace = " " | "	" | "
+";
+
+letter = lowercase | uppercase;
+digit = "1" | "2" | "3"
+      | "4" | "5" | "6"
+      | "7" | "8" | "9"
+      | "0";
+
+number *:= ["-"] {digit};
+
+symbol = "."|","|"!"|"("|")"|"*"|"+"|"/"|"-"|"_"|":"
+       | "@"|"#"|"$"|"%"|"^"|"&"|"*"|"="|"'"|";"|"<"|">";
+
+prop-ident := {letter};
+
+prop-stone := letter letter;
+prop-string := {letter | digit | symbol | whitespace};
+prop-real := ({digit} "." {digit})
+           | ({digit} ".")
+           | ("." {digit});
+prop-value := ("[" <prop-real> "]")
+	        | ("[" <number> "]")
+	        | ("[" <prop-stone> "]")
+	        | ("[" <prop-string> "]")
+	        | ("[" "]");
+
+property := prop-ident {<prop-value>};
+node := ";" {<property>};
+sequence := {<node>};
+game_tree := "(" <sequence> [game_tree] ")";
+collection := {<game_tree>};
+
+main = collection;
