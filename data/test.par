@@ -1,0 +1,34 @@
+# parser rule assignment operators:
+#   ':' - add a tag in the returned parse tree,
+#         which allows you to describe how the parse tree
+#         should be labelled.
+#
+#   '*' - ignore whitespace surrounding this rule.
+# 
+# 
+# grouping rules:
+#   {...} : one or more
+#   [...] : zero or one
+#   (...) : once
+#   <...> : once, ignore surrounding whitespace
+#
+#
+# also this is a comment.
+
+add-expr := term-expr <("+"|"-")> expr;
+mult-expr := term-expr <("*"|"/")> expr;
+
+# 'expr' without any left recursion.
+term-expr = compound-expr | identifier;
+
+compound-expr := "(" <expr> ")";
+expr := compound-expr
+      | mult-expr
+      | add-expr
+      | identifier;
+
+expr-list := "{" {<expr ";">} "}";
+
+# 'main' parser to provide a known top-level symbol for
+# pluggable parsers
+main = expr-list;

@@ -1,11 +1,13 @@
 #include <p_comb/autolist.hpp>
 #include <p_comb/parser.hpp>
+#include <p_comb/ebnfish.hpp>
+#include <map>
 
 using namespace p_comb;
 
 // little expression test parser
 parser op = string_parser("+") | "-" | "*" | "/";
-parser identifier = tag("identifier", letter + zero_or_more(letter | digit | "_"));
+parser identifier = tag("identifier", letter + zero_or_more(letter | digit | "_" | "-"));
 
 struct result expression(autolist<char>::ptr ptr) {
 	static const parser temp = 
@@ -80,31 +82,50 @@ void dump_tokens(std::list<token>& tokens, unsigned indent = 0) {
 	}
 }
 
-int main(void) {
-	struct result meh = SGF_collection(make_fstream(stdin));
+void debug_trace(struct result& res) {
+	for (auto& dbg : res.debug) {
+		printf(" => ");
+		auto temp = dbg;
+
+		for (unsigned i = 0; i < 30 && temp; i++, temp = temp->next()) {
+			if (temp->data == '\n') {
+				printf("(\\n)");
+			} else {
+				printf("%c", temp->data);
+			}
+		}
+
+		printf("\n");
+	}
+}
+
+int main(int argc, char *argv[]) {
+	FILE *fp = fopen((argc > 1)? argv[1] : "data/test.par", "r");
+	//struct result meh = ebnfish(make_fstream(stdin));
+	struct result meh = ebnfish(make_fstream(fp));
+	fclose(fp);
+
 	dump_tokens(meh.tokens);
 
 	if (meh.matched) {
 		puts("successfully matched.");
+		puts("compiling...");
+
+		cparser p = compile_parser(meh.tokens);
+		struct result yo = p["main"](make_fstream(stdin));
+		dump_tokens(yo.tokens);
+
+		if (yo.matched) {
+			puts("hey it works");
+
+		} else {
+			puts("nop sorry.");
+		}
 
 	} else {
 		puts("didn't match.");
 		puts("debug stack:");
-
-		for (auto& dbg : meh.debug) {
-			printf(" => ");
-			auto temp = dbg;
-
-			for (unsigned i = 0; i < 30 && temp; i++, temp = temp->next()) {
-				if (temp->data == '\n') {
-					printf("(\\n)");
-				} else {
-					printf("%c", temp->data);
-				}
-			}
-
-			printf("\n");
-		}
+		debug_trace(meh);
 	}
 
 	return 0;
