@@ -30,13 +30,16 @@ parser ebnfish_compound_expr =
 	// ignores surrounding whitespace
 	| ("<" >> ebnfish_expr_list >> ">")
 	// zero or one matches, [a] = a|empty.
-	| ("[" >> ebnfish_expr_list >> "]")
-	;
+	| ("[" >> ebnfish_expr_list >> "]");
+
+parser ebnfish_blacklist_expr = tag("ebnfish-blacklist",
+	("![" + one_or_more("\\]" | blacklist("]")) + "]"));
 
 struct result ebnfish_expr(autolist<char>::ptr ptr) {
 	static const parser temp = whitewrap(
 		((ebnfish_compound_expr | ebnfish_value) >> "|" >> ebnfish_expr)
 		| ebnfish_compound_expr
+		| ebnfish_blacklist_expr
 		| ebnfish_value
 	);
 
@@ -67,11 +70,44 @@ parser ebnfish = tag("ebnfish", one_or_more(ebnfish_rule) + end_of_stream);
 // end of grammar
 
 // compiler
+
+// TODO: more efficient
+std::string unescape(std::string str) {
+	std::string ret = "";
+
+	for (unsigned i = 0; i < str.size(); i++) {
+		if (str[i] == '\\') {
+			char esc = str[++i];
+
+			// TODO: handle unicode escapes
+			switch (esc) {
+				case 'n': ret += '\n'; break;
+				case 't': ret += '\t'; break;
+				case 'r': ret += '\r'; break;
+				case 'a': ret += '\a'; break;
+				case 'v': ret += '\v'; break;
+
+				default: ret += esc; break;
+			}
+		}
+
+		else {
+			ret += str[i];
+		}
+	}
+
+	return ret;
+}
+
 std::string collect(std::list<token>& tokens) {
 	std::string ret = "";
 
 	for (auto tok : tokens) {
-		// only add untagged data, (base characters)
+		if (tok.tag == "string-literal") {
+			ret += unescape(collect(tok.tokens));
+		}
+
+		// handle base characters
 		if (tok.tag.size() == 0) {
 			ret += tok.data;
 		}
@@ -158,32 +194,34 @@ parser compile_expression(cparser& ret,
 	}
 
 	if (it->tag == "ebnfish-expr") {
-		if (it->tokens.front().data == '{') {
-			return one_or_more(
-				compile_expressions(ret,
-				                    it->tokens.begin(),
-				                    it->tokens.end()));
+		parser temp = compile_expressions(ret,
+		                                  it->tokens.begin(),
+		                                  it->tokens.end());
+
+		switch (it->tokens.front().data) {
+			case '{': temp = one_or_more(temp); break;
+			case '[': temp = zero_or_one(temp); break;
+			case '<': temp = whitewrap(temp);   break;
+			default: break;
 		}
 
-		if (it->tokens.front().data == '[') {
-			return zero_or_one(
-				compile_expressions(ret,
-				                    it->tokens.begin(),
-				                    it->tokens.end()));
-		}
-
-		if (it->tokens.front().data == '<') {
-			return whitewrap(
-				compile_expressions(ret,
-				                    it->tokens.begin(),
-				                    it->tokens.end()));
-		}
-
-		return compile_expressions(ret, it->tokens.begin(),
-		                           it->tokens.end());
+		return temp;
 	}
 
-	std::cerr << "WARNING: unknown state at " << it->tag << ", " << it->data << std::endl;
+	if (it->tag == "ebnfish-blacklist") {
+		std::list<token> meh(std::next(it->tokens.begin()),
+		                     std::prev(it->tokens.end()));
+		std::string chrs = unescape(collect(meh));
+
+		std::cerr << "have blacklist with " << chrs << std::endl;
+		// TODO:  maybe it should be a string blacklist, rather than
+		//        a character blacklist
+		return blacklist(chrs);
+	}
+
+	std::cerr << "WARNING: unknown state at " << it->tag << ", "
+	          << it->data << std::endl;
+
 	// TODO: we should probably return an error before we
 	//       start parsing...
 	return error_and_abort;

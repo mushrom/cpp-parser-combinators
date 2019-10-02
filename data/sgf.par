@@ -1,13 +1,9 @@
 # SGF parser
 
-# TODO: add a symbol builtin and expose blacklist() somehow
-symbol = "."|","|"!"|"("|")"|"*"|"+"|"/"|"-"|"_"|":"
-       | "@"|"#"|"$"|"%"|"^"|"&"|"*"|"="|"'"|";"|"<"|">";
-
 prop-ident := {letter};
 
 prop-stone := letter letter;
-prop-string := {letter | digit | symbol | whitespace};
+prop-string := { ![\]] };
 prop-real := ({digit} "." {digit})
            | ({digit} ".")
            | ("." {digit});
