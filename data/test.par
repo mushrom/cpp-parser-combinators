@@ -19,13 +19,15 @@ add-expr := term-expr <("+"|"-")> expr;
 mult-expr := term-expr <("*"|"/")> expr;
 
 # 'expr' without any left recursion.
-term-expr = compound-expr | identifier;
+term-expr = compound-expr | expr-value;
 
 compound-expr := "(" <expr> ")";
+
+expr-value = identifier | number;
 expr := compound-expr
       | mult-expr
       | add-expr
-      | identifier;
+      | expr-value;
 
 expr-list := "{" {<expr ";">} "}";
 

@@ -129,11 +129,6 @@ parser compile_expression(cparser& ret,
 			          << id << "\"" << std::endl;
 		}
 
-		// XXX TODO remove
-		if (id == "identifier") {
-			return identifier;
-		}
-
 		return [=, &ret] (autolist<char>::ptr ptr) {
 			auto foo = ret.find(id);
 
@@ -259,8 +254,24 @@ void compile_rules(cparser& ret, std::list<token>& tokens) {
 	}
 }
 
+// initialial set of base parsers that are already defined,
+// so that we don't have to redefine common rules in every
+// grammar file
+//
+// (also leaves open the option of optimizing lower-level parsers)
+static std::map<std::string, parser> builtin_parsers = {
+	{ "digit", digit },
+	{ "lowercase", lowercase },
+	{ "uppercase", uppercase },
+	{ "letter", letter },
+	{ "whitespace_char", whitespace_char },
+	{ "whitespace", whitespace },
+	{ "identifier", identifier },
+	{ "number", number },
+};
+
 cparser compile_parser(std::list<token>& tokens) {
-	cparser ret;
+	cparser ret = builtin_parsers;
 	initialize_names(ret, tokens);
 	compile_rules(ret, tokens);
 
