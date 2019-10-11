@@ -5,65 +5,6 @@
 
 using namespace p_comb;
 
-// little expression test parser
-parser op = string_parser("+") | "-" | "*" | "/";
-parser identifier = tag("identifier", letter + zero_or_more(letter | digit | "_" | "-"));
-
-struct result expression(autolist<char>::ptr ptr) {
-	static const parser temp = 
-		  ("(" >> (parser)expression >> ")")
-		| (number >> op >> expression)
-		| number;
-
-	return tag("expression", temp)(ptr);
-}
-
-parser expression_list =
-	tag("expression-list",
-		"[" >> zero_or_more((parser)expression
-				>> zero_or_one(string_parser(",")
-					+ ignore_whitespace))
-			>> "]");
-
-parser assignment = tag("assignment",
-	whitewrap(identifier >> "=" >> expression_list >> ";"));
-
-// SGF parser
-parser prop_string = tag("string",
-	one_or_more(string_parser("\\]") | "\\\\" | "\\:" | blacklist("]")));
-
-parser prop_real = tag("real",
-	(one_or_more(digit) + "." + one_or_more(digit))
-	| (one_or_more(digit) + ".")
-	| ("." + one_or_more(digit)));
-
-parser prop_stone = tag("stone", letter + letter);
-
-parser prop_value = tag("prop-value",
-	whitewrap(
-		("[" >>  prop_real >> "]")
-		| ("[" >>  number >> "]")
-		| ("[" >>  prop_stone >> "]")
-		| ("[" >>  prop_string >> "]")
-		// todo: "None" type
-	));
-
-parser prop_ident = tag("prop-ident", whitewrap(one_or_more(letter)));
-parser property = tag("property", whitewrap(prop_ident >> one_or_more(prop_value)));
-
-parser node = tag("node",
-		whitewrap(";" >> zero_or_more(property)));
-
-parser sequence = tag("sequence", one_or_more(node));
-
-struct result game_tree(autolist<char>::ptr ptr) {
-	parser temp = whitewrap("(" >> sequence >> zero_or_more(game_tree) >> ")");
-
-	return tag("game-tree", temp)(ptr);
-}
-
-parser SGF_collection = tag("collection", one_or_more(game_tree));
-
 void dump_tokens(std::list<token>& tokens, unsigned indent = 0) {
 	for (auto& tok : tokens) {
 		for (unsigned i = 0; i < indent; i++) {
