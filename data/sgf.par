@@ -16,7 +16,7 @@ prop-value := ("[" <prop-real> "]")
 property := prop-ident {<prop-value>};
 node := ";" {<property>};
 sequence := {<node>};
-game_tree := "(" <sequence> [game_tree] ")";
+game_tree := "(" <sequence> [{<game_tree>}] ")";
 collection := {<game_tree>};
 
 main = collection;
