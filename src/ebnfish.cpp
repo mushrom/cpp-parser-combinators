@@ -306,6 +306,7 @@ static std::map<std::string, parser> builtin_parsers = {
 	{ "whitespace", whitespace },
 	{ "identifier", identifier },
 	{ "number", number },
+	{ "EOF", end_of_stream },
 };
 
 cparser compile_parser(std::list<token>& tokens) {

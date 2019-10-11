@@ -46,7 +46,7 @@ parser one_or_more(parser p) {
 parser zero_or_more(parser p) {
 	return [=] (autolist<char>::ptr ptr) {
 		if (!ptr) {
-			return RESULT_NO_MATCH;
+			return (struct result) { nullptr, {}, true };
 		}
 
 		struct result res;
