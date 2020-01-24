@@ -40,33 +40,38 @@ void debug_trace(struct result& res) {
 	}
 }
 
-int main(int argc, char *argv[]) {
-	FILE *fp = fopen((argc > 1)? argv[1] : "data/test.par", "r");
-	//struct result meh = ebnfish(make_fstream(stdin));
-	struct result meh = ebnfish(make_fstream(fp));
-	fclose(fp);
+cparser load_parser(const char *fname) {
+	FILE *file = fopen(fname, "r");
 
-	dump_tokens(meh.tokens);
+	if (!file) {
+		throw "asdf";
+	}
+
+	struct result meh = ebnfish(make_fstream(file));
+
+	if (!meh.matched) {
+		debug_trace(meh);
+		fclose(file);
+		throw "asdf foo";
+	}
+
+	fclose(file);
+	return compile_parser(meh.tokens);
+}
+
+int main(int argc, char *argv[]) {
+	const char *fname = (argc > 1)? argv[1] : "data/test.par";
+
+	cparser p = load_parser(fname);
+	auto meh = p["main"](make_fstream(stdin));
 
 	if (meh.matched) {
-		puts("successfully matched.");
-		puts("compiling...");
-
-		cparser p = compile_parser(meh.tokens);
-		struct result yo = p["main"](make_fstream(stdin));
-		dump_tokens(yo.tokens);
-
-		if (yo.matched) {
-			puts("hey it works");
-
-		} else {
-			puts("nop sorry.");
-		}
+		dump_tokens(meh.tokens);
 
 	} else {
-		puts("didn't match.");
-		puts("debug stack:");
 		debug_trace(meh);
+		std::cerr << "didn't match." << std::endl;
+		return 1;
 	}
 
 	return 0;

@@ -1,0 +1,87 @@
+# naive native language processing for english based on my own loose skimming
+# of random internet articles on grammar
+main = {<sentence>};
+
+#sentence := <clauses> ("." | "?" | "!");
+sentence := declarative-sentence
+          | interrogative-sentence;
+
+declarative-sentence := clauses ("." | "!");
+interrogative-sentence := verb clauses "?";
+
+clauses := (independent-clause {[","] conjunction clauses})
+         | (clause dependent-clause)
+         | independent-clause
+         | clause;
+
+independent-clause := (clause object dependent-clause)
+                    | (clause object);
+
+dependent-clause := (preposition independent-clause)
+                     | (preposition clause)
+                     | (preposition noun)
+                     ;
+
+clause *:= subject verb;
+
+subject := noun | pronoun;
+object := noun | pronoun;
+
+article *:= "a" | "an" | "the" | "that" | "those";
+
+# XXX: can't handle un-capitalized nouns without a preceding article
+# XXX: also consider quotations to be nouns for parsing purposes
+noun *:= (article common-noun)
+       | proper-noun
+       | quotation;
+
+common-noun *:= {lowercase};
+proper-noun *:= (uppercase {lowercase});
+# assume all pronouns are lowercase.
+pronoun *:= "it" | "I"
+          | "they" | "them" | "their" | "theirs"
+          | "she" | "her" | "hers"
+          | "he"  | "him" | "his"
+          | "you" | "your" | "yours"
+          | "that"
+          ;
+
+verb *:= (linking-verb [regular-verb])
+       | regular-verb;
+
+linking-verb *:= "am" | "is" | "was" | "are" | "were"
+               | "has been" | "have been" | "must have been"
+               | "might have been" | "must have" | "become"
+               | "does" | "do" | "will";
+
+regular-verb *:= {lowercase};
+
+# XXX: also assume all adjectives end in "ing" lol
+adjective *:= {lowercase} ("ing");
+# XXX: and "ly" for adverbs
+adverb *:= ({lowercase} "ly")
+         | "very";
+
+# subset of https://www.englishclub.com/grammar/prepositions-list.htm
+preposition *:= "as" | "at" | "but" | "by" | "for" | "from"
+              | "in" | "into" | "like" | "near" | "of" | "off"
+              | "on" | "onto" | "over" | "per" | "than" | "to"
+              | "under" | "unlike" | "until" | "up" | "versus"
+              | "via" | "with" | "within" | "without";
+
+conjunction := coordinating_conjunct
+             | subordinating_conjunct
+             | correlating_conjuct;
+
+coordinating_conjunct *:= "for" | "and" | "nor" | "but" | "or" | "yet" | "so";
+subordinating_conjunct *:=
+    "after" | "although" | "as" | "as if" | "as long as"
+    | "as much as" | "as soon as" | "as though" | "because" | "before"
+    | "by the time" | "even if" | "even though" | "if" | "in order that"
+    | "in case" | "lest" | "once" | "only if" | "provided that" | "since"
+    | "so that" | "than" | "that" | "though" | "till"
+    | "unless" | "until" | "when" | "whenever" | "where" | "wherever" | "while";
+
+correlating_conjuct *:= "asdf";
+
+quotation *:= "\"" {![\"]} "\"";
