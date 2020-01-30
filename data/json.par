@@ -1,0 +1,36 @@
+main = json;
+json := element;
+
+value := object
+       | array
+       | string
+       | number
+       | boolean
+       | "null";
+
+object := "{" [members] "}";
+members := (member "," members)
+         | member;
+member *:= <string> ":" element;
+array := "[" <[elements]> "]";
+elements := (element "," elements)
+          | element;
+
+element *:= <value>;
+string *:= "\"" [{![\"]}] "\"";
+
+#string *:= "\"" [{ character }] "\"";
+# TODO: really need a string "range" parser
+character = letter | ("\\" escape) | whitespace_char;
+hex = digit
+    | "a" | "b" | "c" | "d" | "e" | "f"
+    | "A" | "B" | "C" | "D" | "E" | "F";
+escape = "\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t"
+       | ("u" hex hex hex hex);
+
+number := integer fraction exponent;
+integer := [("-" | "+")] {digit};
+fraction := ["." {digit}];
+exponent := [("E" | "e") integer];
+
+boolean := "true" | "false";
