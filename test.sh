@@ -14,6 +14,8 @@ for line in \
 	"it must have been raining at the beach." \
 	"it must have been raining very hard at the beach." \
 	"wow, it must have been raining very hard at the beach." \
+	"is Dave going to the convention? you should remind him of it." \
+	"do you know if Dave will go to the convention?" \
 	;
 do
 	echo "$line" | ./main data/naive_nlp.par

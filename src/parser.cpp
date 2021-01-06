@@ -161,7 +161,7 @@ parser blacklist(std::string blacklist) {
 }
 
 parser whitewrap(parser a) {
-	return ignore_whitespace + a + ignore_whitespace;
+	return ignore_whitespace + (a + ignore_whitespace);
 }
 
 parser operator+(parser a, parser b) {

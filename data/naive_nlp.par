@@ -7,33 +7,43 @@ sentence := declarative-sentence
           | interrogative-sentence;
 
 declarative-sentence := clauses ("." | "!");
-interrogative-sentence := verb clauses "?";
+interrogative-sentence := interrogative-verb-phrase clauses "?";
 
 clauses := (independent-clause {[","] conjunction clauses})
          | (clause dependent-clause)
          | independent-clause
          | clause;
 
-independent-clause := (clause object dependent-clause)
+independent-clause := (clause object {dependent-clause})
                     | (clause object);
 
+# XXX: what are the rules for prepositions here?
 dependent-clause := (preposition independent-clause)
-                     | (preposition clause)
-                     | (preposition noun)
-                     ;
+                  | (preposition clause)
+                  | (preposition object)
+
+                  | (preposition noun)
+                  | (preposition verb noun)
+                  | (preposition verb)
+                  ;
 
 clause *:= subject verb;
 
-subject := noun | pronoun;
-object := noun | pronoun;
+#subject := pronoun | noun;
+#object := pronoun | noun;
+
+subject = noun;
+object = noun;
 
 article *:= "a" | "an" | "the" | "that" | "those";
 
 # XXX: can't handle un-capitalized nouns without a preceding article
 # XXX: also consider quotations to be nouns for parsing purposes
-noun *:= (article common-noun)
-       | proper-noun
-       | quotation;
+noun := (referrent-pronoun common-noun)
+      | (article common-noun)
+      | pronoun
+      | proper-noun
+      | quotation;
 
 common-noun *:= {lowercase};
 proper-noun *:= (uppercase {lowercase});
@@ -43,29 +53,39 @@ pronoun *:= "it" | "I"
           | "she" | "her" | "hers"
           | "he"  | "him" | "his"
           | "you" | "your" | "yours"
-          | "that"
-          ;
+          | "that" ;
+
+# TODO: what's the proper name for this?
+referrent-pronoun *:= "your" | "their" | "his" | "her" | "my" | "this";
 
 verb *:= (linking-verb [regular-verb])
+       | (adverb verb)
        | regular-verb;
 
 linking-verb *:= "am" | "is" | "was" | "are" | "were"
                | "has been" | "have been" | "must have been"
                | "might have been" | "must have" | "become"
-               | "does" | "do" | "will";
+               | "does" | "do" | "will" | "can" | "should";
+
+# XXX: treat "who" as an interrogative adverb
+interrogative-adverb *:= "what" | "where" | "how" | "when" | "why" | "who";
 
 regular-verb *:= {lowercase};
 
 # XXX: also assume all adjectives end in "ing" lol
 adjective *:= {lowercase} ("ing");
 # XXX: and "ly" for adverbs
-adverb *:= ({lowercase} "ly")
+adverb *:= interrogative-adverb
+         | ({lowercase} "ly")
          | "very";
+
+# XXX: needed to prevent starting a question with any verb
+interrogative-verb-phrase *:= [interrogative-adverb] linking-verb;
 
 # subset of https://www.englishclub.com/grammar/prepositions-list.htm
 preposition *:= "as" | "at" | "but" | "by" | "for" | "from"
-              | "in" | "into" | "like" | "near" | "of" | "off"
-              | "on" | "onto" | "over" | "per" | "than" | "to"
+              | "inside" | "into" | "in" | "like" | "near" | "of" | "off"
+              | "onto" | "on" | "over" | "per" | "than" | "to"
               | "under" | "unlike" | "until" | "up" | "versus"
               | "via" | "with" | "within" | "without";
 

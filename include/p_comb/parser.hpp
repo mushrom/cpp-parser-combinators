@@ -52,26 +52,26 @@ parser tag(std::string type, parser p);
 
 // some commonly-used base parser rules
 // TODO: should find a better place to put this...
-static parser whitespace_char = string_parser(" ")|"\t"|"\v"|"\n"|"\r"|"\a";
-static parser whitespace = one_or_more(whitespace_char);
-static parser ignore_whitespace = ignore(zero_or_more(whitespace_char));
+inline parser whitespace_char = string_parser(" ")|"\t"|"\v"|"\n"|"\r"|"\a";
+inline parser whitespace = one_or_more(whitespace_char);
+inline parser ignore_whitespace = ignore(zero_or_more(whitespace_char));
 
-static parser digit = string_parser("0") | "1" | "2"
+inline parser digit = string_parser("0") | "1" | "2"
                     | "3" | "4" | "5" | "6"
                     | "7" | "8" | "9";
 
-static parser number = tag("number", zero_or_one(string_parser("-"))
+inline parser number = tag("number", zero_or_one(string_parser("-"))
                                      + one_or_more(digit));
 
-static parser lowercase = string_parser("a")|"b"|"c"|"d"|"e"|"f"|"g"|"h"
+inline parser lowercase = string_parser("a")|"b"|"c"|"d"|"e"|"f"|"g"|"h"
                         |"i"|"j"|"k"|"l"|"m"|"n"|"o"|"p"|"q"|"r"|"s"|"t"
                         |"u"|"v"|"w"|"x"|"y"|"z";
 
-static parser uppercase = string_parser("A")|"B"|"C"|"D"|"E"|"F"|"G"|"H"
+inline parser uppercase = string_parser("A")|"B"|"C"|"D"|"E"|"F"|"G"|"H"
                         |"I"|"J"|"K"|"L"|"M"|"N"|"O"|"P"|"Q"|"R"|"S"|"T"
                         |"U"|"V"|"W"|"X"|"Y"|"Z";
 
-static parser letter = lowercase | uppercase;
+inline parser letter = lowercase | uppercase;
 
 // namespace p_comb
 }
