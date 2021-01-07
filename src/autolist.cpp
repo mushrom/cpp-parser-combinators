@@ -2,16 +2,16 @@
 
 namespace p_comb {
 
-autolist<char>::ptr make_fstream(FILE *fp) {
-	char c = fgetc(fp);
+autolist<int32_t>::ptr make_fstream_ascii(FILE *fp) {
+	int32_t c = fgetc(fp);
 
 	if (feof(fp)) {
 		return nullptr;
 	}
 
-	return autolist<char>::ptr(
-		new autolist<char>(
-			[=] () { return make_fstream(fp); },
+	return autolist<int32_t>::ptr(
+		new autolist<int32_t>(
+			[=] () { return make_fstream_ascii(fp); },
 			c)
 		);
 }

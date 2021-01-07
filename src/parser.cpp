@@ -4,15 +4,15 @@
 namespace p_comb {
 
 parser one_or_more(parser p) {
-	return [=] (autolist<char>::ptr ptr) {
+	return [=] (autolist<int32_t>::ptr ptr) {
 		if (!ptr) {
 			return RESULT_NO_MATCH;
 		}
 
 		struct result res;
-		std::list<token> ret;
-		autolist<char>::ptr end = ptr;
-		autolist<char>::ptr last = ptr;
+		token::container ret;
+		autolist<int32_t>::ptr end = ptr;
+		autolist<int32_t>::ptr last = ptr;
 		unsigned i = 0;
 
 		do {
@@ -22,7 +22,8 @@ parser one_or_more(parser p) {
 			i += res.matched;
 
 			if (res.matched) {
-				ret.splice(ret.end(), res.tokens);
+				//ret.splice(ret.end(), res.tokens);
+				ret.insert(ret.end(), res.tokens.begin(), res.tokens.end());
 			}
 		} while (res.matched);
 
@@ -44,15 +45,15 @@ parser one_or_more(parser p) {
 }
 
 parser zero_or_more(parser p) {
-	return [=] (autolist<char>::ptr ptr) {
+	return [=] (autolist<int32_t>::ptr ptr) {
 		if (!ptr) {
 			return (struct result) { nullptr, {}, true };
 		}
 
 		struct result res;
-		std::list<token> ret;
-		autolist<char>::ptr end = ptr;
-		autolist<char>::ptr last = ptr;
+		token::container ret;
+		autolist<int32_t>::ptr end = ptr;
+		autolist<int32_t>::ptr last = ptr;
 		unsigned i = 0;
 
 		do {
@@ -62,7 +63,8 @@ parser zero_or_more(parser p) {
 			i += res.matched;
 
 			if (res.matched) {
-				ret.splice(ret.end(), res.tokens);
+				//ret.splice(ret.end(), res.tokens);
+				ret.insert(ret.end(), res.tokens.begin(), res.tokens.end());
 			}
 		} while (res.matched);
 
@@ -71,7 +73,7 @@ parser zero_or_more(parser p) {
 }
 
 parser zero_or_one(parser p) {
-	return [=] (autolist<char>::ptr ptr) {
+	return [=] (autolist<int32_t>::ptr ptr) {
 		if (!ptr) {
 			return RESULT_NO_MATCH;
 		}
@@ -83,7 +85,7 @@ parser zero_or_one(parser p) {
 }
 
 parser ignore(parser p) {
-	return [=] (autolist<char>::ptr ptr) {
+	return [=] (autolist<int32_t>::ptr ptr) {
 		struct result foo = p(ptr);
 
 		// return result info, except for any returned tokens.
@@ -92,7 +94,7 @@ parser ignore(parser p) {
 }
 
 parser tag(std::string type, parser p) {
-	return [=] (autolist<char>::ptr ptr) {
+	return [=] (autolist<int32_t>::ptr ptr) {
 		struct result foo = p(ptr);
 
 		token tok;
@@ -106,7 +108,7 @@ parser tag(std::string type, parser p) {
 }
 
 parser string_parser(std::string str) {
-	return [=] (autolist<char>::ptr ptr) {
+	return [=] (autolist<int32_t>::ptr ptr) {
 		auto temp = ptr;
 
 		for (unsigned i = 0; i < str.size(); i++) {
@@ -117,7 +119,7 @@ parser string_parser(std::string str) {
 			temp = temp->next();
 		}
 
-		std::list<token> tok;
+		token::container tok;
 
 		// XXX
 		for (unsigned i = 0; i < str.size(); i++) {
@@ -141,13 +143,30 @@ parser string_parser(std::string str) {
 	};
 }
 
-parser blacklist(std::string blacklist) {
-	return [=] (autolist<char>::ptr ptr) {
+parser codepoint_range(int32_t start, int32_t end) {
+	return [=] (autolist<int32_t>::ptr ptr) {
 		if (!ptr) {
 			return RESULT_NO_MATCH;
 		}
 
-		for (char c : blacklist) {
+		if (ptr->data < start || ptr->data > end) {
+			return (struct result) { ptr, {}, false };
+		}
+
+		token tok;
+		tok.data = ptr->data;
+
+		return (struct result) { ptr->next(), {tok}, true, };
+	};
+}
+
+parser blacklist(std::string blacklist) {
+	return [=] (autolist<int32_t>::ptr ptr) {
+		if (!ptr) {
+			return RESULT_NO_MATCH;
+		}
+
+		for (int32_t c : blacklist) {
 			if (c == ptr->data) {
 				return (struct result) { ptr, {}, false };
 			}
@@ -165,7 +184,7 @@ parser whitewrap(parser a) {
 }
 
 parser operator+(parser a, parser b) {
-	return [=] (autolist<char>::ptr ptr) {
+	return [=] (autolist<int32_t>::ptr ptr) {
 		struct result first, second, ret;
 
 		if (!ptr) return ret;
@@ -179,7 +198,8 @@ parser operator+(parser a, parser b) {
 
 		second = b(first.next);
 		ret.next = second.next;
-		first.tokens.splice(first.tokens.end(), second.tokens);
+		//first.tokens.splice(first.tokens.end(), second.tokens);
+		first.tokens.insert(first.tokens.end(), second.tokens.begin(), second.tokens.end());
 		ret.tokens = first.tokens;
 		ret.matched = first.matched && second.matched;
 
@@ -193,7 +213,7 @@ parser operator+(parser a, parser b) {
 }
 
 parser operator|(parser a, parser b) {
-	return [=] (autolist<char>::ptr ptr) {
+	return [=] (autolist<int32_t>::ptr ptr) {
 		struct result foo = a(ptr);
 
 		if (foo.matched) {

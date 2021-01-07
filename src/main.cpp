@@ -5,7 +5,7 @@
 
 using namespace p_comb;
 
-void dump_tokens(std::list<token>& tokens, unsigned indent = 0) {
+void dump_tokens(token::container& tokens, unsigned indent = 0) {
 	for (auto& tok : tokens) {
 		for (unsigned i = 0; i < indent; i++) {
 			std::cout << "   :";
@@ -47,7 +47,7 @@ cparser load_parser(const char *fname) {
 		throw "asdf";
 	}
 
-	struct result meh = ebnfish(make_fstream(file));
+	struct result meh = ebnfish(make_fstream_ascii(file));
 
 	if (!meh.matched) {
 		debug_trace(meh);
@@ -63,7 +63,7 @@ int main(int argc, char *argv[]) {
 	const char *fname = (argc > 1)? argv[1] : "data/test.par";
 
 	cparser p = load_parser(fname);
-	auto meh = p["main"](make_fstream(stdin));
+	auto meh = p["main"](make_fstream_ascii(stdin));
 
 	if (meh.matched) {
 		dump_tokens(meh.tokens);

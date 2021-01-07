@@ -3,6 +3,7 @@
 #include <memory>
 #include <functional>
 #include <iostream>
+#include <stdint.h>
 
 namespace p_comb {
 
@@ -39,7 +40,8 @@ class autolist {
 		bool have_cached = false;
 };
 
-autolist<char>::ptr make_fstream(FILE *fp);
+autolist<int32_t>::ptr make_fstream_ascii(FILE *fp);
+autolist<int32_t>::ptr make_fstream_utf8(FILE *fp);
 
 // namespace p_comb
 }

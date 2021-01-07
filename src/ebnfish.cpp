@@ -18,7 +18,7 @@ parser ebnfish_value = whitewrap(
 	identifier
 	| ebnfish_string);
 
-struct result ebnfish_expr(autolist<char>::ptr ptr);
+struct result ebnfish_expr(autolist<int32_t>::ptr ptr);
 
 parser ebnfish_expr_list = one_or_more((parser)ebnfish_expr);
 
@@ -30,12 +30,14 @@ parser ebnfish_compound_expr =
 	// ignores surrounding whitespace
 	| ("<" >> ebnfish_expr_list >> ">")
 	// zero or one matches, [a] = a|empty.
-	| ("[" >> ebnfish_expr_list >> "]");
+	| ("[" >> ebnfish_expr_list >> "]")
+	// any number of matches, greedy
+	| ("+" >> ebnfish_expr_list >> "]");
 
 parser ebnfish_blacklist_expr = tag("ebnfish-blacklist",
 	("![" + one_or_more("\\]" | blacklist("]")) + "]"));
 
-struct result ebnfish_expr(autolist<char>::ptr ptr) {
+struct result ebnfish_expr(autolist<int32_t>::ptr ptr) {
 	static const parser temp = whitewrap(
 		((ebnfish_compound_expr | ebnfish_value) >> "|" >> ebnfish_expr)
 		| ebnfish_compound_expr
@@ -46,7 +48,7 @@ struct result ebnfish_expr(autolist<char>::ptr ptr) {
 	return tag("ebnfish-expr", temp)(ptr);
 }
 
-struct result end_of_stream(autolist<char>::ptr ptr) {
+struct result end_of_stream(autolist<int32_t>::ptr ptr) {
 	if (ptr) {
 		return RESULT_NO_MATCH;
 	}
@@ -77,7 +79,7 @@ std::string unescape(std::string str) {
 
 	for (unsigned i = 0; i < str.size(); i++) {
 		if (str[i] == '\\') {
-			char esc = str[++i];
+			int32_t esc = str[++i];
 
 			// TODO: handle unicode escapes
 			switch (esc) {
@@ -99,7 +101,7 @@ std::string unescape(std::string str) {
 	return ret;
 }
 
-std::string collect(std::list<token>& tokens) {
+std::string collect(token::container& tokens) {
 	std::string ret = "";
 
 	for (auto tok : tokens) {
@@ -116,21 +118,21 @@ std::string collect(std::list<token>& tokens) {
 	return ret;
 }
 
-struct result error_and_abort(autolist<char>::ptr ptr) {
+struct result error_and_abort(autolist<int32_t>::ptr ptr) {
 	std::cerr << "ERROR: invalid state!" << std::endl;
 	std::cerr << "       something something compiler bug..." << std::endl;
 
 	return (struct result){ptr, {}, false, {ptr}};
 }
 
-struct result uninitialized_abort(autolist<char>::ptr ptr) {
+struct result uninitialized_abort(autolist<int32_t>::ptr ptr) {
 	std::cerr << "ERROR: uninitialized rule!" << std::endl;
 	std::cerr << "       something something compiler bug..." << std::endl;
 
 	return (struct result){ptr, {}, false, {ptr}};
 }
 
-void initialize_names(cparser& ret, std::list<token>& tokens) {
+void initialize_names(cparser& ret, token::container& tokens) {
 	assert(tokens.front().tag == "ebnfish");
 
 	for (auto& ruletok : tokens.front().tokens) {
@@ -147,15 +149,15 @@ void initialize_names(cparser& ret, std::list<token>& tokens) {
 }
 
 parser compile_expressions(cparser& ret,
-                           std::list<token>::iterator it,
-                           std::list<token>::iterator end);
+                           token::container::iterator it,
+                           token::container::iterator end);
 parser compile_expression(cparser& ret,
-                          std::list<token>::iterator it,
-                          std::list<token>::iterator end);
+                          token::container::iterator it,
+                          token::container::iterator end);
 
 parser compile_expression(cparser& ret,
-                          std::list<token>::iterator it,
-                          std::list<token>::iterator end)
+                          token::container::iterator it,
+                          token::container::iterator end)
 {
 	if (it->tag == "identifier") {
 		std::string id = collect(it->tokens);
@@ -165,7 +167,7 @@ parser compile_expression(cparser& ret,
 			          << id << "\"" << std::endl;
 		}
 
-		return [=, &ret] (autolist<char>::ptr ptr) {
+		return [=, &ret] (autolist<int32_t>::ptr ptr) {
 			auto foo = ret.find(id);
 
 			if (foo != ret.end()) {
@@ -201,6 +203,7 @@ parser compile_expression(cparser& ret,
 		switch (it->tokens.front().data) {
 			case '{': temp = one_or_more(temp); break;
 			case '[': temp = zero_or_one(temp); break;
+			case '+': temp = zero_or_more(temp); break;
 			case '<': temp = whitewrap(temp);   break;
 			default: break;
 		}
@@ -209,7 +212,7 @@ parser compile_expression(cparser& ret,
 	}
 
 	if (it->tag == "ebnfish-blacklist") {
-		std::list<token> meh(std::next(it->tokens.begin()),
+		token::container meh(std::next(it->tokens.begin()),
 		                     std::prev(it->tokens.end()));
 		std::string chrs = unescape(collect(meh));
 
@@ -228,8 +231,8 @@ parser compile_expression(cparser& ret,
 }
 
 parser compile_expressions(cparser& ret,
-                           std::list<token>::iterator it,
-                           std::list<token>::iterator end)
+                           token::container::iterator it,
+                           token::container::iterator end)
 {
 	parser p = nullptr;
 
@@ -239,7 +242,7 @@ parser compile_expressions(cparser& ret,
 		    || it->data == '}' || it->data == ']'
 		    || it->data == '<' || it->data == '>'
 			|| it->data == '{' || it->data == '('
-			|| it->data == '[')
+			|| it->data == '[' || it->data == '+')
 		{
 			// ignore terminal characters
 			// TODO: string index instead of a bunch of conditions
@@ -262,7 +265,7 @@ parser compile_expressions(cparser& ret,
 	return p;
 }
 
-void compile_rules(cparser& ret, std::list<token>& tokens) {
+void compile_rules(cparser& ret, token::container& tokens) {
 	for (auto& ruletok : tokens.front().tokens) {
 		std::string& toktag = ruletok.tokens.front().tag;
 
@@ -309,7 +312,7 @@ static std::map<std::string, parser> builtin_parsers = {
 	{ "EOF", end_of_stream },
 };
 
-cparser compile_parser(std::list<token>& tokens) {
+cparser compile_parser(token::container& tokens) {
 	cparser ret = builtin_parsers;
 	initialize_names(ret, tokens);
 	compile_rules(ret, tokens);
