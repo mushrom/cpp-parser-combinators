@@ -9,23 +9,32 @@ sentence := declarative-sentence
 declarative-sentence := clauses ("." | "!");
 interrogative-sentence := interrogative-verb-phrase clauses "?";
 
-clauses := (independent-clause {[","] conjunction clauses})
-         | (clause dependent-clause)
-         | independent-clause
-         | clause;
+clauses := (subclause {[","] conjunction clauses})
+		 | subclause;
+
+subclause = independent-clause
+          | dependent-clause 
+          | (clause {dependent-clause});
 
 independent-clause := (clause object {dependent-clause})
                     | (clause object);
 
 # XXX: what are the rules for prepositions here?
-dependent-clause := (preposition independent-clause)
-                  | (preposition clause)
-                  | (preposition object)
+#dependent-clause := (preposition {clauses})
+#                  | (preposition object)
+#
+#                  | (preposition noun)
+#                  | (preposition verb noun)
+#                  | (preposition verb)
+#                  ;
 
-                  | (preposition noun)
-                  | (preposition verb noun)
-                  | (preposition verb)
-                  ;
+dependent-clause := preposition
+                    (
+                     object
+                     | (verb noun)
+                     | verb
+					 | ({clauses})
+					 );
 
 clause *:= subject verb;
 
@@ -33,17 +42,23 @@ clause *:= subject verb;
 #object := pronoun | noun;
 
 subject = noun;
-object = noun;
+object = [adjective] noun;
 
-article *:= "a" | "an" | "the" | "that" | "those";
+article *:= "an" | "a" | "the" | "that" | "those";
 
 # XXX: can't handle un-capitalized nouns without a preceding article
 # XXX: also consider quotations to be nouns for parsing purposes
-noun := (referrent-pronoun common-noun)
-      | (article common-noun)
+atomic-noun := ("n:" {lowercase})
+      | (referrent-pronoun common-noun)
       | pronoun
+      | (article [adjective] common-noun)
       | proper-noun
       | quotation;
+	
+noun := noun-list | atomic-noun;
+
+noun-list := (atomic-noun [<",">] noun-list)
+           | ("and" atomic-noun);
 
 common-noun *:= {lowercase};
 proper-noun *:= (uppercase {lowercase});
@@ -58,14 +73,21 @@ pronoun *:= "it" | "I"
 # TODO: what's the proper name for this?
 referrent-pronoun *:= "your" | "their" | "his" | "her" | "my" | "this";
 
-verb *:= (linking-verb [regular-verb])
+verb *:= ("v:" {lowercase})
+       | (verb-phrase)
+       | (linking-verb [verb])
        | (adverb verb)
-       | regular-verb;
+       | (regular-verb {adverb})
+       | (regular-verb);
 
-linking-verb *:= "am" | "is" | "was" | "are" | "were"
+linking-verb *:= ("am" | "is" | "was" | "are" | "were"
                | "has been" | "have been" | "must have been"
-               | "might have been" | "must have" | "become"
-               | "does" | "do" | "will" | "can" | "should";
+               | "might have been" | "must have" | "must" | "become"
+               | "does" | "do" | "will" | "would" | "can" | "should") [negation];
+
+verb-phrase *:= "look around";
+
+negation *:= "not" | "n't";
 
 # XXX: treat "who" as an interrogative adverb
 interrogative-adverb *:= "what" | "where" | "how" | "when" | "why" | "who";
@@ -73,17 +95,16 @@ interrogative-adverb *:= "what" | "where" | "how" | "when" | "why" | "who";
 regular-verb *:= {lowercase};
 
 # XXX: also assume all adjectives end in "ing" lol
-adjective *:= {lowercase} ("ing");
+adjective *:= ["very"] ({lowercase} "ing") | ("adj:" {lowercase});
 # XXX: and "ly" for adverbs
-adverb *:= interrogative-adverb
-         | ({lowercase} "ly")
-         | "very";
+#adverb *:= "very" | ({![" ly"]} "ly");
+adverb *:= ["very"] ("adv:" {lowercase});
 
 # XXX: needed to prevent starting a question with any verb
 interrogative-verb-phrase *:= [interrogative-adverb] linking-verb;
 
 # subset of https://www.englishclub.com/grammar/prepositions-list.htm
-preposition *:= "as" | "at" | "but" | "by" | "for" | "from"
+preposition *:= "as" | "at" | "and" | "but" | "by" | "for" | "from"
               | "inside" | "into" | "in" | "like" | "near" | "of" | "off"
               | "onto" | "on" | "over" | "per" | "than" | "to"
               | "under" | "unlike" | "until" | "up" | "versus"
@@ -100,7 +121,8 @@ subordinating_conjunct *:=
     | "by the time" | "even if" | "even though" | "if" | "in order that"
     | "in case" | "lest" | "once" | "only if" | "provided that" | "since"
     | "so that" | "than" | "that" | "though" | "till"
-    | "unless" | "until" | "when" | "whenever" | "where" | "wherever" | "while";
+    | "unless" | "until" | "when" | "whenever" | "where" | "wherever" | "while"
+	| "then";
 
 correlating_conjuct *:= "asdf";
 
