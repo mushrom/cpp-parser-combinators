@@ -6,18 +6,43 @@ main = {<sentence>};
 sentence := declarative-sentence
           | interrogative-sentence;
 
-declarative-sentence := clauses ("." | "!");
-interrogative-sentence := interrogative-verb-phrase clauses "?";
+declarative-sentence := clauses ("." | "!" | ":");
+interrogative-sentence := interrogative-verb-phrase clauses [preposition] "?";
 
-clauses := (subclause {[","] conjunction clauses})
-		 | subclause;
+#clauses := (subclause {[","] conjunction clauses})
+#		 | subclause;
 
-subclause = independent-clause
-          | dependent-clause 
-          | (clause {dependent-clause});
+#clauses = subject-clause;
+clauses = conjunction-clause;
 
-independent-clause := (clause object {dependent-clause})
-                    | (clause object);
+subject-clause := ((SVO-clause thing)
+                |  (SV-clause thing))
+                |  (SVO-clause)
+                |  (SV-clause)
+                ;
+
+thing = ({prep-dep-clause} [conjunction-clause])
+      | conjunction-clause;
+
+conjunction-clause := [","]
+                      ( conjunction subject-clause )
+                    | ( conjunction verb-dep-clause {prep-dep-clause} [conjunction-clause] )
+                    | ( conjunction verb-dep-clause [conjunction-clause] )
+                    | (subject-clause)
+                    ;
+
+#subclause = independent-clause
+#          | dependent-clause
+#          | (clause {dependent-clause})
+#          | clause;
+
+#independent-clause := (clause object {dependent-clause})
+#                    | (clause object);
+
+SV-clause := subject verb;
+SVO-clause := (subject verb         object)
+            | (subject linking-verb object)
+            ;
 
 # XXX: what are the rules for prepositions here?
 #dependent-clause := (preposition {clauses})
@@ -28,15 +53,8 @@ independent-clause := (clause object {dependent-clause})
 #                  | (preposition verb)
 #                  ;
 
-dependent-clause := preposition
-                    (
-                     object
-                     | (verb noun)
-                     | verb
-					 | ({clauses})
-					 );
-
-clause *:= subject verb;
+prep-dep-clause := preposition noun;
+verb-dep-clause := verb noun;
 
 #subject := pronoun | noun;
 #object := pronoun | noun;
@@ -44,10 +62,15 @@ clause *:= subject verb;
 subject = noun;
 object = [adjective] noun;
 
-article *:= "an" | "a" | "the" | "that" | "those";
+article *:= "any " | "an " | "a " | "the " | "those ";
 
 # XXX: can't handle un-capitalized nouns without a preceding article
 # XXX: also consider quotations to be nouns for parsing purposes
+# XXX: could partially handle pronoun/reference
+#      ambiguities by having separate noun rules with and without
+#      references, most ambiguities that are parsed incorrectly
+#      result in bad parses overall
+#      (see SVO linking-verb hax above)
 atomic-noun := ("n:" {lowercase})
       | (referrent-pronoun common-noun)
       | pronoun
@@ -63,18 +86,17 @@ noun-list := (atomic-noun [<",">] noun-list)
 common-noun *:= {lowercase};
 proper-noun *:= (uppercase {lowercase});
 # assume all pronouns are lowercase.
-pronoun *:= "it" | "I"
+pronoun *:= ("it" | "I"
           | "they" | "them" | "their" | "theirs"
           | "she" | "her" | "hers"
           | "he"  | "him" | "his"
           | "you" | "your" | "yours"
-          | "that" ;
+          | "there" | "this" | "that");
 
 # TODO: what's the proper name for this?
-referrent-pronoun *:= "your" | "their" | "his" | "her" | "my" | "this";
+referrent-pronoun *:= ("your" | "their" | "his" | "her" | "my" | "this") " ";
 
 verb *:= ("v:" {lowercase})
-       | (verb-phrase)
        | (linking-verb [verb])
        | (adverb verb)
        | (regular-verb {adverb})
@@ -83,9 +105,9 @@ verb *:= ("v:" {lowercase})
 linking-verb *:= ("am" | "is" | "was" | "are" | "were"
                | "has been" | "have been" | "must have been"
                | "might have been" | "must have" | "must" | "become"
-               | "does" | "do" | "will" | "would" | "can" | "should") [negation];
-
-verb-phrase *:= "look around";
+               | "does" | "do" | "will" | "would" | "can" | "should"
+               )
+               ((negation " ") | (" " negation) | " ");
 
 negation *:= "not" | "n't";
 
@@ -104,25 +126,27 @@ adverb *:= ["very"] ("adv:" {lowercase});
 interrogative-verb-phrase *:= [interrogative-adverb] linking-verb;
 
 # subset of https://www.englishclub.com/grammar/prepositions-list.htm
-preposition *:= "as" | "at" | "and" | "but" | "by" | "for" | "from"
+preposition *:= ("as" | "at" | "by" | "for" | "from"
               | "inside" | "into" | "in" | "like" | "near" | "of" | "off"
               | "onto" | "on" | "over" | "per" | "than" | "to"
               | "under" | "unlike" | "until" | "up" | "versus"
-              | "via" | "with" | "within" | "without";
+              | "via" | "within" | "without" | "with"
+              | "around") " ";
 
 conjunction := coordinating_conjunct
              | subordinating_conjunct
              | correlating_conjuct;
 
-coordinating_conjunct *:= "for" | "and" | "nor" | "but" | "or" | "yet" | "so";
-subordinating_conjunct *:=
+coordinating_conjunct *:= ("for" | "and" | "nor" | "but" | "or" | "yet" | "so") " ";
+subordinating_conjunct *:= (
     "after" | "although" | "as" | "as if" | "as long as"
     | "as much as" | "as soon as" | "as though" | "because" | "before"
     | "by the time" | "even if" | "even though" | "if" | "in order that"
     | "in case" | "lest" | "once" | "only if" | "provided that" | "since"
-    | "so that" | "than" | "that" | "though" | "till"
+    | "so that" | "such that" | "than" | "that" | "though" | "till"
     | "unless" | "until" | "when" | "whenever" | "where" | "wherever" | "while"
-	| "then";
+    | "which"
+    | "then" | "otherwise") " ";
 
 correlating_conjuct *:= "asdf";
 
