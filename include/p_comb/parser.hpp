@@ -1,9 +1,12 @@
 #pragma once
 
-#include <p_comb/autolist.hpp>
 #include <functional>
 //#include <list>
 #include <vector>
+#include <string_view>
+#include <string>
+#include <iostream>
+#include <stdio.h>
 
 namespace p_comb {
 
@@ -17,15 +20,16 @@ typedef struct token {
 } token;
 
 struct result {
-	autolist<int32_t>::ptr next;
+	//autolist<int32_t>::ptr next;
+	std::string_view next;
 	token::container tokens;
 	bool matched = false;
-	std::vector<autolist<int32_t>::ptr> debug;
+	std::vector<std::string_view> debug;
 };
 
-#define RESULT_NO_MATCH ((struct result) { nullptr, {}, false, })
+#define RESULT_NO_MATCH ((struct result) { "", {}, false, })
 
-typedef std::function<struct result (autolist<int32_t>::ptr)> parser;
+typedef std::function<struct result (std::string_view)> parser;
 
 // rules for matching characters from the stream
 parser string_parser(std::string str);

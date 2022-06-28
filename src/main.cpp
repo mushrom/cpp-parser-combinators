@@ -2,6 +2,8 @@
 #include <p_comb/parser.hpp>
 #include <p_comb/ebnfish.hpp>
 #include <map>
+#include <sstream>
+#include <fstream>
 
 using namespace p_comb;
 
@@ -25,45 +27,42 @@ void dump_tokens(token::container& tokens, unsigned indent = 0) {
 
 void debug_trace(struct result& res) {
 	for (auto& dbg : res.debug) {
-		printf(" => ");
-		auto temp = dbg;
-
-		for (unsigned i = 0; i < 30 && temp; i++, temp = temp->next()) {
-			if (temp->data == '\n') {
-				printf("(\\n)");
-			} else {
-				printf("%c", temp->data);
-			}
-		}
-
-		printf("\n");
+		std::cout << " => " << dbg << "\n";
 	}
 }
 
+std::string read_file(const char *filename) {
+	std::ifstream f(filename);
+	std::stringstream strm;
+
+	strm << f.rdbuf();
+	return strm.str();
+}
+
 cparser load_parser(const char *fname) {
-	FILE *file = fopen(fname, "r");
-
-	if (!file) {
-		throw "asdf";
-	}
-
-	struct result meh = ebnfish(make_fstream_ascii(file));
+	std::string buf = read_file(fname);
+	struct result meh = ebnfish(buf);
 
 	if (!meh.matched) {
 		debug_trace(meh);
-		fclose(file);
 		throw "asdf foo";
 	}
 
-	fclose(file);
 	return compile_parser(meh.tokens);
+}
+
+parser numberparse(std::string_view v) {
+	return zero_or_one(string_parser("+") | "-")
+		+ one_or_more(codepoint_range('0', '9'));
 }
 
 int main(int argc, char *argv[]) {
 	const char *fname = (argc > 1)? argv[1] : "data/test.par";
 
 	cparser p = load_parser(fname);
-	auto meh = p["main"](make_fstream_ascii(stdin));
+	std::string data = read_file("/dev/stdin");
+	std::string_view foo = data;
+	auto meh = p["main"](foo);
 
 	if (meh.matched) {
 		dump_tokens(meh.tokens);

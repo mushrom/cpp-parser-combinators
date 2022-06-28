@@ -1,18 +1,21 @@
-#include <p_comb/autolist.hpp>
 #include <p_comb/parser.hpp>
 
 namespace p_comb {
 
-parser one_or_more(parser p) {
-	return [=] (autolist<int32_t>::ptr ptr) {
-		if (!ptr) {
-			return RESULT_NO_MATCH;
-		}
+int32_t next_char(std::string_view v) {
+	return (v.empty())? -1 : v[0];
+}
 
+std::string_view increment(std::string_view v) {
+	return (v.empty())? v : v.substr(1);
+}
+
+parser one_or_more(parser p) {
+	return [=] (std::string_view ptr) {
 		struct result res;
 		token::container ret;
-		autolist<int32_t>::ptr end = ptr;
-		autolist<int32_t>::ptr last = ptr;
+		std::string_view end = ptr;
+		std::string_view last = ptr;
 		unsigned i = 0;
 
 		do {
@@ -45,15 +48,11 @@ parser one_or_more(parser p) {
 }
 
 parser zero_or_more(parser p) {
-	return [=] (autolist<int32_t>::ptr ptr) {
-		if (!ptr) {
-			return (struct result) { nullptr, {}, true };
-		}
-
+	return [=] (std::string_view ptr) {
 		struct result res;
 		token::container ret;
-		autolist<int32_t>::ptr end = ptr;
-		autolist<int32_t>::ptr last = ptr;
+		std::string_view end = ptr;
+		std::string_view last = ptr;
 		unsigned i = 0;
 
 		do {
@@ -73,19 +72,18 @@ parser zero_or_more(parser p) {
 }
 
 parser zero_or_one(parser p) {
-	return [=] (autolist<int32_t>::ptr ptr) {
-		if (!ptr) {
+	return [=] (std::string_view ptr) {
+		if (ptr.empty()) {
 			return RESULT_NO_MATCH;
 		}
 
 		struct result res = p(ptr);
-
 		return res.matched? res : (struct result){ ptr, {}, true};
 	};
 }
 
 parser ignore(parser p) {
-	return [=] (autolist<int32_t>::ptr ptr) {
+	return [=] (std::string_view ptr) {
 		struct result foo = p(ptr);
 
 		// return result info, except for any returned tokens.
@@ -94,7 +92,7 @@ parser ignore(parser p) {
 }
 
 parser tag(std::string type, parser p) {
-	return [=] (autolist<int32_t>::ptr ptr) {
+	return [=] (std::string_view ptr) {
 		struct result foo = p(ptr);
 
 		token tok;
@@ -108,15 +106,15 @@ parser tag(std::string type, parser p) {
 }
 
 parser string_parser(std::string str) {
-	return [=] (autolist<int32_t>::ptr ptr) {
+	return [=] (std::string_view ptr) {
 		auto temp = ptr;
 
 		for (unsigned i = 0; i < str.size(); i++) {
-			if (!temp || temp->data != str[i]) {
+			if (temp.empty() || next_char(temp) != str[i]) {
 				return (struct result){temp, {}, false, {temp}};
 			}
 
-			temp = temp->next();
+			temp = increment(temp);
 		}
 
 		token::container tok;
@@ -144,38 +142,42 @@ parser string_parser(std::string str) {
 }
 
 parser codepoint_range(int32_t start, int32_t end) {
-	return [=] (autolist<int32_t>::ptr ptr) {
-		if (!ptr) {
+	return [=] (std::string_view ptr) {
+		if (ptr.empty()) {
 			return RESULT_NO_MATCH;
 		}
 
-		if (ptr->data < start || ptr->data > end) {
+		int32_t data = next_char(ptr);
+
+		if (data < start || data > end) {
 			return (struct result) { ptr, {}, false };
 		}
 
 		token tok;
-		tok.data = ptr->data;
+		tok.data = data;
 
-		return (struct result) { ptr->next(), {tok}, true, };
+		return (struct result) { increment(ptr), {tok}, true, };
 	};
 }
 
 parser blacklist(std::string blacklist) {
-	return [=] (autolist<int32_t>::ptr ptr) {
-		if (!ptr) {
+	return [=] (std::string_view ptr) {
+		if (ptr.empty()) {
 			return RESULT_NO_MATCH;
 		}
 
-		for (int32_t c : blacklist) {
-			if (c == ptr->data) {
+		uint32_t data = next_char(ptr);
+
+		for (uint32_t c : blacklist) {
+			if (c == data) {
 				return (struct result) { ptr, {}, false };
 			}
 		}
 
 		token tok;
-		tok.data = ptr->data;
+		tok.data = data;
 
-		return (struct result) { ptr->next(), {tok}, true, };
+		return (struct result) { increment(ptr), {tok}, true, };
 	};
 }
 
@@ -184,10 +186,13 @@ parser whitewrap(parser a) {
 }
 
 parser operator+(parser a, parser b) {
-	return [=] (autolist<int32_t>::ptr ptr) {
+	return [=] (std::string_view ptr) {
 		struct result first, second, ret;
 
-		if (!ptr) return ret;
+		//if (!ptr) return ret;
+		if (ptr.empty()) {
+			return ret;
+		}
 
 		first = a(ptr);
 
@@ -213,7 +218,7 @@ parser operator+(parser a, parser b) {
 }
 
 parser operator|(parser a, parser b) {
-	return [=] (autolist<int32_t>::ptr ptr) {
+	return [=] (std::string_view ptr) {
 		struct result foo = a(ptr);
 
 		if (foo.matched) {

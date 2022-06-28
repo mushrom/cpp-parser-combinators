@@ -1,4 +1,3 @@
-#include <p_comb/autolist.hpp>
 #include <p_comb/parser.hpp>
 #include <p_comb/ebnfish.hpp>
 #include <map>
@@ -18,7 +17,7 @@ parser ebnfish_value = whitewrap(
 	identifier
 	| ebnfish_string);
 
-struct result ebnfish_expr(autolist<int32_t>::ptr ptr);
+struct result ebnfish_expr(std::string_view ptr);
 
 parser ebnfish_expr_list = one_or_more((parser)ebnfish_expr);
 
@@ -37,7 +36,7 @@ parser ebnfish_compound_expr =
 parser ebnfish_blacklist_expr = tag("ebnfish-blacklist",
 	("![" + one_or_more("\\]" | blacklist("]")) + "]"));
 
-struct result ebnfish_expr(autolist<int32_t>::ptr ptr) {
+struct result ebnfish_expr(std::string_view ptr) {
 	static const parser temp = whitewrap(
 		((ebnfish_compound_expr | ebnfish_value) >> "|" >> ebnfish_expr)
 		| ebnfish_compound_expr
@@ -48,8 +47,8 @@ struct result ebnfish_expr(autolist<int32_t>::ptr ptr) {
 	return tag("ebnfish-expr", temp)(ptr);
 }
 
-struct result end_of_stream(autolist<int32_t>::ptr ptr) {
-	if (ptr) {
+struct result end_of_stream(std::string_view ptr) {
+	if (!ptr.empty()) {
 		return RESULT_NO_MATCH;
 	}
 
@@ -118,14 +117,14 @@ std::string collect(token::container& tokens) {
 	return ret;
 }
 
-struct result error_and_abort(autolist<int32_t>::ptr ptr) {
+struct result error_and_abort(std::string_view ptr) {
 	std::cerr << "ERROR: invalid state!" << std::endl;
 	std::cerr << "       something something compiler bug..." << std::endl;
 
 	return (struct result){ptr, {}, false, {ptr}};
 }
 
-struct result uninitialized_abort(autolist<int32_t>::ptr ptr) {
+struct result uninitialized_abort(std::string_view ptr) {
 	std::cerr << "ERROR: uninitialized rule!" << std::endl;
 	std::cerr << "       something something compiler bug..." << std::endl;
 
@@ -167,7 +166,7 @@ parser compile_expression(cparser& ret,
 			          << id << "\"" << std::endl;
 		}
 
-		return [=, &ret] (autolist<int32_t>::ptr ptr) {
+		return [=, &ret] (std::string_view ptr) {
 			auto foo = ret.find(id);
 
 			if (foo != ret.end()) {
