@@ -7,7 +7,7 @@
 
 using namespace p_comb;
 
-void dump_tokens(token::container& tokens, unsigned indent = 0) {
+void dump_tokens(container& tokens, unsigned indent = 0) {
 	for (auto& tok : tokens) {
 		for (unsigned i = 0; i < indent; i++) {
 			std::cout << "   :";
@@ -26,9 +26,11 @@ void dump_tokens(token::container& tokens, unsigned indent = 0) {
 }
 
 void debug_trace(struct result& res) {
+	/*
 	for (auto& dbg : res.debug) {
 		std::cout << " => " << dbg << "\n";
 	}
+	*/
 }
 
 std::string read_file(const char *filename) {
@@ -41,10 +43,11 @@ std::string read_file(const char *filename) {
 
 cparser load_parser(const char *fname) {
 	std::string buf = read_file(fname);
-	struct result meh = ebnfish(buf);
+	//struct result meh = ebnfish(buf);
+	auto meh = evaluate(ebnfish, buf);
 
 	if (!meh.matched) {
-		debug_trace(meh);
+		//debug_trace(meh);
 		throw "asdf foo";
 	}
 
@@ -62,13 +65,14 @@ int main(int argc, char *argv[]) {
 	cparser p = load_parser(fname);
 	std::string data = read_file("/dev/stdin");
 	std::string_view foo = data;
-	auto meh = p["main"](foo);
+	//auto meh = p["main"](foo);
+	auto meh = evaluate(p["main"], foo);
 
 	if (meh.matched) {
 		dump_tokens(meh.tokens);
 
 	} else {
-		debug_trace(meh);
+		//debug_trace(meh);
 		std::cerr << "didn't match." << std::endl;
 		return 1;
 	}

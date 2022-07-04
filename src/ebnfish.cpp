@@ -17,7 +17,7 @@ parser ebnfish_value = whitewrap(
 	identifier
 	| ebnfish_string);
 
-struct result ebnfish_expr(std::string_view ptr);
+result ebnfish_expr(std::string_view ptr, parserState& parser);
 
 parser ebnfish_expr_list = one_or_more((parser)ebnfish_expr);
 
@@ -36,7 +36,7 @@ parser ebnfish_compound_expr =
 parser ebnfish_blacklist_expr = tag("ebnfish-blacklist",
 	("![" + one_or_more("\\]" | blacklist("]")) + "]"));
 
-struct result ebnfish_expr(std::string_view ptr) {
+struct result ebnfish_expr(std::string_view ptr, parserState& state) {
 	static const parser temp = whitewrap(
 		((ebnfish_compound_expr | ebnfish_value) >> "|" >> ebnfish_expr)
 		| ebnfish_compound_expr
@@ -44,15 +44,17 @@ struct result ebnfish_expr(std::string_view ptr) {
 		| ebnfish_value
 	);
 
-	return tag("ebnfish-expr", temp)(ptr);
+	return tag("ebnfish-expr", temp)(ptr, state);
 }
 
-struct result end_of_stream(std::string_view ptr) {
+struct result end_of_stream(std::string_view ptr, parserState& state) {
 	if (!ptr.empty()) {
 		return RESULT_NO_MATCH;
 	}
 
-	return (struct result){ ptr, {}, true, {}};
+	//return (struct result){ ptr, {}, true, {}};
+	//return (struct result){ ptr, {}, true };
+	return (struct result){ ptr, true };
 }
 
 parser ebnfish_comment = tag("ebnfish-comment",
@@ -100,7 +102,7 @@ std::string unescape(std::string str) {
 	return ret;
 }
 
-std::string collect(token::container& tokens) {
+std::string collect(container& tokens) {
 	std::string ret = "";
 
 	for (auto tok : tokens) {
@@ -117,21 +119,25 @@ std::string collect(token::container& tokens) {
 	return ret;
 }
 
-struct result error_and_abort(std::string_view ptr) {
+struct result error_and_abort(std::string_view ptr, parserState& state) {
 	std::cerr << "ERROR: invalid state!" << std::endl;
 	std::cerr << "       something something compiler bug..." << std::endl;
 
-	return (struct result){ptr, {}, false, {ptr}};
+	//return (struct result){ptr, {}, false, {ptr}};
+	//return (struct result){ ptr, {}, false };
+	return result {ptr, false};
 }
 
-struct result uninitialized_abort(std::string_view ptr) {
+struct result uninitialized_abort(std::string_view ptr, parserState& state) {
 	std::cerr << "ERROR: uninitialized rule!" << std::endl;
 	std::cerr << "       something something compiler bug..." << std::endl;
 
-	return (struct result){ptr, {}, false, {ptr}};
+	//return (struct result){ptr, {}, false, {ptr}};
+	//return (struct result){ptr, {}, false};
+	return result {ptr, false};
 }
 
-void initialize_names(cparser& ret, token::container& tokens) {
+void initialize_names(cparser& ret, container& tokens) {
 	assert(tokens.front().tag == "ebnfish");
 
 	for (auto& ruletok : tokens.front().tokens) {
@@ -148,15 +154,15 @@ void initialize_names(cparser& ret, token::container& tokens) {
 }
 
 parser compile_expressions(cparser& ret,
-                           token::container::iterator it,
-                           token::container::iterator end);
+                           container::iterator it,
+                           container::iterator end);
 parser compile_expression(cparser& ret,
-                          token::container::iterator it,
-                          token::container::iterator end);
+                          container::iterator it,
+                          container::iterator end);
 
 parser compile_expression(cparser& ret,
-                          token::container::iterator it,
-                          token::container::iterator end)
+                          container::iterator it,
+                          container::iterator end)
 {
 	if (it->tag == "identifier") {
 		std::string id = collect(it->tokens);
@@ -166,11 +172,11 @@ parser compile_expression(cparser& ret,
 			          << id << "\"" << std::endl;
 		}
 
-		return [=, &ret] (std::string_view ptr) {
+		return [=, &ret] (std::string_view ptr, parserState& state) {
 			auto foo = ret.find(id);
 
 			if (foo != ret.end()) {
-				return foo->second(ptr);
+				return foo->second(ptr, state);
 			}
 
 			// passive-aggressive errors for maximum effect
@@ -211,8 +217,8 @@ parser compile_expression(cparser& ret,
 	}
 
 	if (it->tag == "ebnfish-blacklist") {
-		token::container meh(std::next(it->tokens.begin()),
-		                     std::prev(it->tokens.end()));
+		container meh(std::next(it->tokens.begin()),
+		              std::prev(it->tokens.end()));
 		std::string chrs = unescape(collect(meh));
 
 		std::cerr << "have blacklist with " << chrs << std::endl;
@@ -230,8 +236,8 @@ parser compile_expression(cparser& ret,
 }
 
 parser compile_expressions(cparser& ret,
-                           token::container::iterator it,
-                           token::container::iterator end)
+                           container::iterator it,
+                           container::iterator end)
 {
 	parser p = nullptr;
 
@@ -264,7 +270,7 @@ parser compile_expressions(cparser& ret,
 	return p;
 }
 
-void compile_rules(cparser& ret, token::container& tokens) {
+void compile_rules(cparser& ret, container& tokens) {
 	for (auto& ruletok : tokens.front().tokens) {
 		std::string& toktag = ruletok.tokens.front().tag;
 
@@ -311,7 +317,7 @@ static std::map<std::string, parser> builtin_parsers = {
 	{ "EOF", end_of_stream },
 };
 
-cparser compile_parser(token::container& tokens) {
+cparser compile_parser(container& tokens) {
 	cparser ret = builtin_parsers;
 	initialize_names(ret, tokens);
 	compile_rules(ret, tokens);

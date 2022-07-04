@@ -5,8 +5,8 @@
 namespace p_comb {
 
 typedef std::map<std::string, parser> cparser;
-std::string collect(token::container& tokens);
-cparser compile_parser(token::container& tokens);
+std::string collect(container& tokens);
+cparser compile_parser(container& tokens);
 
 extern parser ebnfish;
 

@@ -11,138 +11,158 @@ std::string_view increment(std::string_view v) {
 }
 
 parser one_or_more(parser p) {
-	return [=] (std::string_view ptr) {
-		struct result res;
-		token::container ret;
+	return [=] (std::string_view ptr, parserState& state) {
+		result res;
+
 		std::string_view end = ptr;
 		std::string_view last = ptr;
 		unsigned i = 0;
 
 		do {
+			auto saved = state.capture();
+
 			last = end;
-			res = p(end);
+			res = p(end, state);
 			end = res.next;
 			i += res.matched;
 
-			if (res.matched) {
-				//ret.splice(ret.end(), res.tokens);
-				ret.insert(ret.end(), res.tokens.begin(), res.tokens.end());
+			if (!res.matched) {
+				state.restore(saved);
 			}
 		} while (res.matched);
 
 		// TODO: wrap return token stream, so we can actually
 		//       get tokens returned when parsing
 		if (i >= 1) {
-			return (struct result) { last, ret, true, };
+			return result {last, true};
 		}
-
-		//return RESULT_NO_MATCH;
-		//return (struct result) { last, ret, false, };
 
 		// if we get here, we failed on the first match, so we can
 		// reuse the result struct here since the 'last' pointer should
 		// still be the same
-		res.debug.push_back(ptr);
 		return res;
 	};
 }
 
 parser zero_or_more(parser p) {
-	return [=] (std::string_view ptr) {
-		struct result res;
-		token::container ret;
+	return [=] (std::string_view ptr, parserState& state) {
+		result res;
+
 		std::string_view end = ptr;
 		std::string_view last = ptr;
 		unsigned i = 0;
 
 		do {
+			auto saved = state.capture();
+
 			last = end;
-			res = p(end);
+			res = p(end, state);
 			end = res.next;
 			i += res.matched;
 
-			if (res.matched) {
-				//ret.splice(ret.end(), res.tokens);
-				ret.insert(ret.end(), res.tokens.begin(), res.tokens.end());
+			if (!res.matched) {
+				state.restore(saved);
 			}
+
 		} while (res.matched);
 
-		return (struct result) { last, ret, true, };
+		return result {last, true};
 	};
 }
 
 parser zero_or_one(parser p) {
-	return [=] (std::string_view ptr) {
+	return [=] (std::string_view ptr, parserState& state) {
 		if (ptr.empty()) {
 			return RESULT_NO_MATCH;
 		}
 
-		struct result res = p(ptr);
-		return res.matched? res : (struct result){ ptr, {}, true};
+		auto saved = state.capture();
+		result res = p(ptr, state);
+
+		if (res.matched) {
+			return res;
+
+		} else {
+			state.restore(saved);
+			return result {ptr, true};
+		}
 	};
 }
 
 parser ignore(parser p) {
-	return [=] (std::string_view ptr) {
-		struct result foo = p(ptr);
+	return [=] (std::string_view ptr, parserState& state) {
+		auto saved = state.capture();
+		result foo = p(ptr, state);
+
+		// XXX: restore to erase any added tokens from the parser,
+		//      would be more efficient to not add them to begin with
+		state.restore(saved);
 
 		// return result info, except for any returned tokens.
-		return (struct result){ foo.next, {}, foo.matched, foo.debug };
+		return foo;
 	};
 }
 
 parser tag(std::string type, parser p) {
-	return [=] (std::string_view ptr) {
-		struct result foo = p(ptr);
+	return [=] (std::string_view ptr, parserState& state) {
+		state.pushTag(type);
+		result foo = p(ptr, state);
 
-		token tok;
-		tok.tag = type;
-		tok.tokens = foo.tokens;
+		if (foo.matched) {
+			state.popTag();
+		} else {
+			state.discardTag();
+		}
 
-		foo.tokens = {tok};
-		foo.debug.push_back(ptr);
 		return foo;
 	};
 }
 
 parser string_parser(std::string str) {
-	return [=] (std::string_view ptr) {
+	// special case for empty strings, always returns true (just a no-op)
+	if (str.size() == 0) {
+		return [=] (std::string_view ptr, parserState& state) {
+			return result {ptr, true};
+		};
+	}
+
+	return [=] (std::string_view ptr, parserState& state) {
 		auto temp = ptr;
 
 		for (unsigned i = 0; i < str.size(); i++) {
 			if (temp.empty() || next_char(temp) != str[i]) {
-				return (struct result){temp, {}, false, {temp}};
+				return result {temp, false};
 			}
 
 			temp = increment(temp);
 		}
 
-		token::container tok;
-
-		// XXX
-		for (unsigned i = 0; i < str.size(); i++) {
-			tok.push_back({{}, str[i]});
-		}
-
-		// avoid cluttering the token tree with single-character
-		// string lists, when we just about always want the character itself
-		// to be a single return token
+		// successfully matched
 		if (str.size() > 1) {
-			token foo;
-			foo.tag = "string-literal";
-			foo.tokens = tok;
+			// avoid cluttering the token tree with single-character
+			// string lists, when we just about always want the character itself
+			// to be a single return token
+			state.pushTag("string-literal");
 
-			return (struct result){ temp, {foo}, true, };
+			// XXX
+			for (unsigned i = 0; i < str.size(); i++) {
+				state.pushToken({ .data = str[i] });
+			}
+
+			state.popTag();
+			return result {temp, true};
 		}
+
 
 		else {
-			return (struct result){ temp, tok, true, };
+			state.pushToken({ .data = str[0] });
+			return result {temp, true};
 		}
 	};
 }
 
 parser codepoint_range(int32_t start, int32_t end) {
-	return [=] (std::string_view ptr) {
+	return [=] (std::string_view ptr, parserState& state) {
 		if (ptr.empty()) {
 			return RESULT_NO_MATCH;
 		}
@@ -150,34 +170,31 @@ parser codepoint_range(int32_t start, int32_t end) {
 		int32_t data = next_char(ptr);
 
 		if (data < start || data > end) {
-			return (struct result) { ptr, {}, false };
+			return result {ptr, false};
 		}
 
-		token tok;
-		tok.data = data;
+		state.pushToken({ .data = data });
 
-		return (struct result) { increment(ptr), {tok}, true, };
+		return result {increment(ptr), true};
 	};
 }
 
 parser blacklist(std::string blacklist) {
-	return [=] (std::string_view ptr) {
+	return [=] (std::string_view ptr, parserState& state) {
 		if (ptr.empty()) {
 			return RESULT_NO_MATCH;
 		}
 
-		uint32_t data = next_char(ptr);
+		int32_t data = next_char(ptr);
 
-		for (uint32_t c : blacklist) {
+		for (int32_t c : blacklist) {
 			if (c == data) {
-				return (struct result) { ptr, {}, false };
+				return result {ptr, false};
 			}
 		}
 
-		token tok;
-		tok.data = data;
-
-		return (struct result) { increment(ptr), {tok}, true, };
+		state.pushToken({ .data = data });
+		return result { increment(ptr), true, };
 	};
 }
 
@@ -186,31 +203,27 @@ parser whitewrap(parser a) {
 }
 
 parser operator+(parser a, parser b) {
-	return [=] (std::string_view ptr) {
-		struct result first, second, ret;
+	return [=] (std::string_view ptr, parserState& state) {
+		result first, second, ret;
 
-		//if (!ptr) return ret;
 		if (ptr.empty()) {
 			return ret;
 		}
 
-		first = a(ptr);
+		auto saved = state.capture();
+		first = a(ptr, state);
 
 		if (!first.matched) {
-			//first.debug.push_back(ptr);
+			state.restore(saved);
 			return first;
 		}
 
-		second = b(first.next);
+		second = b(first.next, state);
 		ret.next = second.next;
-		//first.tokens.splice(first.tokens.end(), second.tokens);
-		first.tokens.insert(first.tokens.end(), second.tokens.begin(), second.tokens.end());
-		ret.tokens = first.tokens;
 		ret.matched = first.matched && second.matched;
 
 		if (!ret.matched) {
-			ret.debug = second.debug;
-			ret.debug.push_back(first.next);
+			state.restore(saved);
 		}
 
 		return ret;
@@ -218,14 +231,22 @@ parser operator+(parser a, parser b) {
 }
 
 parser operator|(parser a, parser b) {
-	return [=] (std::string_view ptr) {
-		struct result foo = a(ptr);
+	return [=] (std::string_view ptr, parserState& state) {
+		auto saved = state.capture();
+		result foo = a(ptr, state);
 
 		if (foo.matched) {
 			return foo;
 		}
 
-		return b(ptr);
+		state.restore(saved);
+		auto bar = b(ptr, state);
+
+		if (!bar.matched) {
+			state.restore(saved);
+		}
+
+		return bar;
 	};
 }
 

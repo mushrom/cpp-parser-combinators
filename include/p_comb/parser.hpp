@@ -10,26 +10,116 @@
 
 namespace p_comb {
 
+// TODO: would be cool to have this be templated,
+//       so that any iterator type could be used
+//using viewPosition = std::string_view::iterator;
+//using viewPair     = std::pair<viewPosition, viewPosition>;
 
-typedef struct token {
-	typedef std::vector<token> container;
+	struct token;
+typedef std::vector<token> container;
 
+struct token {
 	container tokens;
 	int32_t data = 0;
 	std::string tag = "";
-} token;
-
-struct result {
-	//autolist<int32_t>::ptr next;
-	std::string_view next;
-	token::container tokens;
-	bool matched = false;
-	std::vector<std::string_view> debug;
 };
 
-#define RESULT_NO_MATCH ((struct result) { "", {}, false, })
+struct parserState {
+	using stackType = std::vector<container>;
+	//using frameType = container::iterator;
+	using frameType = size_t;
 
-typedef std::function<struct result (std::string_view)> parser;
+	stackType tokenStack;
+	std::vector<std::string> tagStack;
+
+	// ensure that there's a bottom to the stack, if no tag is ever pushed then
+	// all tokens will end up in this container
+	//container untaggedTokens;
+
+	parserState() {
+		//push(&untaggedTokens);
+		tokenStack.push_back({});
+	}
+
+	const container& front() {
+		return tokenStack.front();
+	}
+
+	void pushTag(const std::string& tag) {
+		tokenStack.push_back({});
+		tagStack.push_back(tag);
+	}
+
+	void popTag() {
+		if (!tagStack.empty()) {
+			auto& tag = tagStack.back();
+			container& ret = tokenStack.back();
+			
+			token t;
+			t.tag = tag;
+			t.tokens = std::move(ret);
+
+			tokenStack.pop_back();
+			tagStack.pop_back();
+			pushToken(t);
+		}
+	}
+
+	void discardTag() {
+		if (!tagStack.empty()) {
+			tagStack.pop_back();
+			tokenStack.pop_back();
+		}
+	}
+
+	frameType capture() {
+		//return tokenStack.back().end() - 1;
+		return tokenStack.back().size();
+	}
+
+	void restore(frameType& frame) {
+		//tokenStack.back().erase(frame + 1, tokenStack.back().end());
+		auto& t = tokenStack.back();
+		if (frame < t.size()) {
+			t.erase(t.begin() + frame, t.end());
+			//t.resize(frame);
+		}
+	}
+
+	void pushToken(const token& t) {
+		tokenStack.back().push_back(t);
+	}
+};
+
+struct result {
+	std::string_view next;
+	//token::container tokens;
+	bool matched = false;
+	//autolist<int32_t>::ptr next;
+	//viewPair
+	//token::container tokens;
+	//std::vector<std::string_view> debug;
+};
+
+#define RESULT_NO_MATCH ((struct result) { "", false })
+
+struct evalResult {
+	bool      matched;
+	container tokens;
+};
+
+typedef std::function<result (std::string_view, parserState&)> parser;
+
+static inline
+evalResult evaluate(parser p, std::string_view view) {
+	parserState state;
+	result res = p(view, state);
+
+	return {
+		res.matched,
+		state.front(),
+	};
+}
 
 // rules for matching characters from the stream
 parser string_parser(std::string str);
