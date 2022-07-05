@@ -21,7 +21,9 @@ void dump_tokens(container& tokens, unsigned indent = 0) {
 			printf("'%c'\n", tok.data);
 		}
 
-		dump_tokens(tok.tokens, indent + 1);
+		if (tok.subtokens) {
+			dump_tokens(*tok.subtokens, indent + 1);
+		}
 	}
 }
 

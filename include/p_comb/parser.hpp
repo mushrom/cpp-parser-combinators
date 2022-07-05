@@ -6,6 +6,7 @@
 #include <string_view>
 #include <string>
 #include <iostream>
+#include <optional>
 #include <stdio.h>
 
 namespace p_comb {
@@ -15,13 +16,13 @@ namespace p_comb {
 //using viewPosition = std::string_view::iterator;
 //using viewPair     = std::pair<viewPosition, viewPosition>;
 
-	struct token;
+struct token;
 typedef std::vector<token> container;
 
 struct token {
-	container tokens;
 	int32_t data = 0;
 	std::string tag = "";
+	std::optional<container> subtokens;
 };
 
 struct parserState {
@@ -57,7 +58,7 @@ struct parserState {
 			
 			token t;
 			t.tag = tag;
-			t.tokens = std::move(ret);
+			t.subtokens = std::move(ret);
 
 			tokenStack.pop_back();
 			tagStack.pop_back();
