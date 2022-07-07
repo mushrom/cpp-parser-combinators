@@ -2,20 +2,26 @@
 
 namespace p_comb {
 
-int32_t next_char(std::string_view v) {
-	return (v.empty())? -1 : v[0];
+bool empty(const viewPair& v) {
+	return v.first == v.second;
 }
 
-std::string_view increment(std::string_view v) {
-	return (v.empty())? v : v.substr(1);
+int32_t next_char(const viewPair& v) {
+	return empty(v)? -1 : *v.first;
+}
+
+viewPair increment(const viewPair& v) {
+	return empty(v)? v : viewPair {v.first + 1, v.second};
 }
 
 parser one_or_more(parser p) {
-	return [=] (std::string_view ptr, parserState& state) {
+	return [=] (viewPair ptr, parserState& state) {
 		result res;
 
-		std::string_view end = ptr;
-		std::string_view last = ptr;
+		//std::string_view end = ptr;
+		//std::string_view last = ptr;
+		viewPair end = ptr;
+		viewPair last = ptr;
 		unsigned i = 0;
 
 		do {
@@ -45,11 +51,11 @@ parser one_or_more(parser p) {
 }
 
 parser zero_or_more(parser p) {
-	return [=] (std::string_view ptr, parserState& state) {
+	return [=] (viewPair ptr, parserState& state) {
 		result res;
 
-		std::string_view end = ptr;
-		std::string_view last = ptr;
+		viewPair end = ptr;
+		viewPair last = ptr;
 		unsigned i = 0;
 
 		do {
@@ -71,8 +77,8 @@ parser zero_or_more(parser p) {
 }
 
 parser zero_or_one(parser p) {
-	return [=] (std::string_view ptr, parserState& state) {
-		if (ptr.empty()) {
+	return [=] (viewPair ptr, parserState& state) {
+		if (empty(ptr)) {
 			return RESULT_NO_MATCH;
 		}
 
@@ -90,13 +96,16 @@ parser zero_or_one(parser p) {
 }
 
 parser ignore(parser p) {
-	return [=] (std::string_view ptr, parserState& state) {
-		auto saved = state.capture();
+	return [=] (viewPair ptr, parserState& state) {
+		bool temp = state.ignoring;
+		//auto saved = state.capture();
+		state.ignoring = true;
 		result foo = p(ptr, state);
+		state.ignoring = temp;
 
 		// XXX: restore to erase any added tokens from the parser,
 		//      would be more efficient to not add them to begin with
-		state.restore(saved);
+		//state.restore(saved);
 
 		// return result info, except for any returned tokens.
 		return foo;
@@ -104,7 +113,7 @@ parser ignore(parser p) {
 }
 
 parser tag(std::string type, parser p) {
-	return [=] (std::string_view ptr, parserState& state) {
+	return [=] (viewPair ptr, parserState& state) {
 		state.pushTag(type);
 		result foo = p(ptr, state);
 
@@ -121,16 +130,16 @@ parser tag(std::string type, parser p) {
 parser string_parser(std::string str) {
 	// special case for empty strings, always returns true (just a no-op)
 	if (str.size() == 0) {
-		return [=] (std::string_view ptr, parserState& state) {
+		return [=] (viewPair ptr, parserState& state) {
 			return result {ptr, true};
 		};
 	}
 
-	return [=] (std::string_view ptr, parserState& state) {
+	return [=] (viewPair ptr, parserState& state) {
 		auto temp = ptr;
 
 		for (unsigned i = 0; i < str.size(); i++) {
-			if (temp.empty() || next_char(temp) != str[i]) {
+			if (empty(temp) || next_char(temp) != str[i]) {
 				return result {temp, false};
 			}
 
@@ -138,32 +147,17 @@ parser string_parser(std::string str) {
 		}
 
 		// successfully matched
-		if (str.size() > 1) {
-			// avoid cluttering the token tree with single-character
-			// string lists, when we just about always want the character itself
-			// to be a single return token
-			state.pushTag("string-literal");
-
-			// XXX
-			for (unsigned i = 0; i < str.size(); i++) {
-				state.pushToken({ .data = str[i] });
-			}
-
-			state.popTag();
-			return result {temp, true};
+		for (unsigned i = 0; i < str.size(); i++) {
+			state.pushToken(ptr.first + i);
 		}
 
-
-		else {
-			state.pushToken({ .data = str[0] });
-			return result {temp, true};
-		}
+		return result {temp, true};
 	};
 }
 
 parser codepoint_range(int32_t start, int32_t end) {
-	return [=] (std::string_view ptr, parserState& state) {
-		if (ptr.empty()) {
+	return [=] (viewPair ptr, parserState& state) {
+		if (empty(ptr)) {
 			return RESULT_NO_MATCH;
 		}
 
@@ -173,15 +167,16 @@ parser codepoint_range(int32_t start, int32_t end) {
 			return result {ptr, false};
 		}
 
-		state.pushToken({ .data = data });
+		state.pushToken(ptr.first);
+		//state.pushToken({ .data = data });
 
 		return result {increment(ptr), true};
 	};
 }
 
 parser blacklist(std::string blacklist) {
-	return [=] (std::string_view ptr, parserState& state) {
-		if (ptr.empty()) {
+	return [=] (viewPair ptr, parserState& state) {
+		if (empty(ptr)) {
 			return RESULT_NO_MATCH;
 		}
 
@@ -193,7 +188,8 @@ parser blacklist(std::string blacklist) {
 			}
 		}
 
-		state.pushToken({ .data = data });
+		//state.pushToken({ .data = data });
+		state.pushToken(ptr.first);
 		return result { increment(ptr), true, };
 	};
 }
@@ -203,10 +199,10 @@ parser whitewrap(parser a) {
 }
 
 parser operator+(parser a, parser b) {
-	return [=] (std::string_view ptr, parserState& state) {
+	return [=] (viewPair ptr, parserState& state) {
 		result first, second, ret;
 
-		if (ptr.empty()) {
+		if (empty(ptr)) {
 			return ret;
 		}
 
@@ -231,7 +227,7 @@ parser operator+(parser a, parser b) {
 }
 
 parser operator|(parser a, parser b) {
-	return [=] (std::string_view ptr, parserState& state) {
+	return [=] (viewPair ptr, parserState& state) {
 		auto saved = state.capture();
 		result foo = a(ptr, state);
 

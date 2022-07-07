@@ -5,6 +5,22 @@
 
 namespace p_comb {
 
+void dump(container::iterator it, unsigned indent = 0) {
+	for (unsigned i = 0; i < indent; i++)
+		std::cerr << "  : ";
+
+	//std::cerr << "token: " << std::to_address(it) << " "
+	std::cerr << "token: "
+		<< it->tag << ": "
+		<< "'" << it->get() << "'" << std::endl;
+	if (it->subtokens) {
+		for (auto t = it->subtokens->begin(); t != it->subtokens->end(); t++) {
+			dump(t, indent + 1);
+		}
+	}
+}
+
+
 parser identifier = tag("identifier", letter + zero_or_more(letter | digit | "_" | "-"));
 
 // ebnf-ish parser parser
@@ -17,7 +33,7 @@ parser ebnfish_value = whitewrap(
 	identifier
 	| ebnfish_string);
 
-result ebnfish_expr(std::string_view ptr, parserState& parser);
+result ebnfish_expr(viewPair ptr, parserState& parser);
 
 parser ebnfish_expr_list = one_or_more((parser)ebnfish_expr);
 
@@ -36,7 +52,7 @@ parser ebnfish_compound_expr =
 parser ebnfish_blacklist_expr = tag("ebnfish-blacklist",
 	("![" + one_or_more("\\]" | blacklist("]")) + "]"));
 
-struct result ebnfish_expr(std::string_view ptr, parserState& state) {
+struct result ebnfish_expr(viewPair ptr, parserState& state) {
 	static const parser temp = whitewrap(
 		((ebnfish_compound_expr | ebnfish_value) >> "|" >> ebnfish_expr)
 		| ebnfish_compound_expr
@@ -47,8 +63,8 @@ struct result ebnfish_expr(std::string_view ptr, parserState& state) {
 	return tag("ebnfish-expr", temp)(ptr, state);
 }
 
-struct result end_of_stream(std::string_view ptr, parserState& state) {
-	if (!ptr.empty()) {
+struct result end_of_stream(viewPair ptr, parserState& state) {
+	if (ptr.first != ptr.second) {
 		return RESULT_NO_MATCH;
 	}
 
@@ -106,22 +122,24 @@ std::string collect(container& tokens) {
 	std::string ret = "";
 
 	for (auto tok : tokens) {
-		if (tok.tag == "string-literal") {
+		//if (tok.tag == "string-literal") {
 			if (auto sub = tok.subtokens) {
 				ret += unescape(collect(*sub));
 			}
-		}
+		//}
 
 		// handle base characters
 		if (tok.tag.size() == 0) {
-			ret += tok.data;
+			//ret += tok.data;
+			ret += tok.get();
 		}
 	}
 
+	std::cerr << __func__ << ": collected '" << ret << "'" << std::endl;
 	return ret;
 }
 
-struct result error_and_abort(std::string_view ptr, parserState& state) {
+struct result error_and_abort(viewPair ptr, parserState& state) {
 	std::cerr << "ERROR: invalid state!" << std::endl;
 	std::cerr << "       something something compiler bug..." << std::endl;
 
@@ -130,7 +148,17 @@ struct result error_and_abort(std::string_view ptr, parserState& state) {
 	return result {ptr, false};
 }
 
-struct result uninitialized_abort(std::string_view ptr, parserState& state) {
+struct result error_nullparser(viewPair ptr, parserState& state) {
+	std::cerr << "ERROR: null parser!" << std::endl;
+	std::cerr << "       ebnfish internal compiler bug..." << std::endl;
+
+	//return (struct result){ptr, {}, false, {ptr}};
+	//return (struct result){ ptr, {}, false };
+	return result {ptr, false};
+}
+
+
+struct result uninitialized_abort(viewPair ptr, parserState& state) {
 	std::cerr << "ERROR: uninitialized rule!" << std::endl;
 	std::cerr << "       something something compiler bug..." << std::endl;
 
@@ -173,19 +201,29 @@ parser compile_expression(cparser& ret,
                           container::iterator it,
                           container::iterator end)
 {
+	std::cerr
+		<< __func__
+		<< ": tag: '"
+		<< it->tag << "'"
+		<< ", data: '" << it->get() << "'"
+		<< std::endl;
+
 	if (it->tag == "identifier") {
+		std::cerr << __func__ << ": got here, in compile_expression" << std::endl;
+
 		if (!it->subtokens) {
-			throw "asdf";
+			throw std::logic_error("asdf");
 		}
 
 		std::string id = collect(*it->subtokens);
+		std::cerr << __func__ << ": compile_expression(): have ID " << id << std::endl;
 
 		if (ret.find(id) == ret.end()) {
 			std::cerr << "WARNING: reference to undefined rule \""
 			          << id << "\"" << std::endl;
 		}
 
-		return [=, &ret] (std::string_view ptr, parserState& state) {
+		return [=, &ret] (viewPair ptr, parserState& state) {
 			auto foo = ret.find(id);
 
 			if (foo != ret.end()) {
@@ -210,7 +248,7 @@ parser compile_expression(cparser& ret,
 
 	if (it->tag == "ebnfish-string") {
 		if (!it->subtokens) {
-			throw "asdf";
+			throw std::logic_error("asdf");
 		}
 
 		std::string lit = collect(*it->subtokens);
@@ -219,19 +257,42 @@ parser compile_expression(cparser& ret,
 
 	if (it->tag == "ebnfish-expr") {
 		if (!it->subtokens) {
-			throw "asdfasdf";
+			throw std::logic_error("asdfasdf");
 		}
+
+		/*
+		if (it->subtokens->front().get().empty()) {
+			throw std::logic_error("blkajsdf;klhjsfh");
+		}
+		*/
+
+		/*
+		std::string expr = collect(*it->subtokens);
+		*/
+		std::string expr = collect(*it->subtokens);
+		//std::string expr = collect(*it->subtokens->front().subtokens.front().get());
+		//std::string_view expr = it->subtokens->front().subtokens->front().get();
+		//std::string_view expr = it->subtokens->front().get();
+
+		std::cerr << __func__ << ": <compile start>" << std::endl;
+		dump(it);
 
 		parser temp = compile_expressions(ret,
 		                                  it->subtokens->begin(),
 		                                  it->subtokens->end());
+		std::cerr << __func__ << ": <enbfish-expr: compile end>" << std::endl;
 
-		switch (it->subtokens->front().data) {
-			case '{': temp = one_or_more(temp); break;
-			case '[': temp = zero_or_one(temp); break;
-			case '+': temp = zero_or_more(temp); break;
-			case '<': temp = whitewrap(temp);   break;
-			default: break;
+		std::cerr << __func__ << ": <ebnfish-expr: '" << expr << "'" << std::endl;
+		if (expr.size() > 0) {
+
+			//switch (it->subtokens->front().get()[0]) {
+			switch (expr[0]) {
+				case '{': temp = one_or_more(temp); break;
+				case '[': temp = zero_or_one(temp); break;
+				case '+': temp = zero_or_more(temp); break;
+				case '<': temp = whitewrap(temp);   break;
+				default: break;
+			}
 		}
 
 		return temp;
@@ -239,21 +300,23 @@ parser compile_expression(cparser& ret,
 
 	if (it->tag == "ebnfish-blacklist") {
 		if (!it->subtokens) {
-			throw "blarg";
+			throw std::logic_error("blarg");
 		}
 
 		container meh(std::next(it->subtokens->begin()),
 		              std::prev(it->subtokens->end()));
 		std::string chrs = unescape(collect(meh));
 
-		std::cerr << "have blacklist with " << chrs << std::endl;
+		std::cerr << __func__ << ": have blacklist with " << chrs << std::endl;
 		// TODO:  maybe it should be a string blacklist, rather than
 		//        a character blacklist
 		return blacklist(chrs);
 	}
 
-	std::cerr << "WARNING: unknown state at " << it->tag << ", "
-	          << it->data << std::endl;
+	std::cerr << "WARNING: unknown state at '" << it->tag << "', "
+	          << it->get() << std::endl;
+
+	dump(it);
 
 	// TODO: we should probably return an error before we
 	//       start parsing...
@@ -265,24 +328,80 @@ parser compile_expressions(cparser& ret,
                            container::iterator end)
 {
 	parser p = nullptr;
+	//parser p = string_parser("asdfasdfasdf");
+	bool haveParser = false;
+
+	auto asdf = R"(
+		1 2 3     
+	)";
 
 	// symbols that indicate the end of an expression
 	for (; it != end; it++) {
-		if (it->data == ';' || it->data == ')'
-		    || it->data == '}' || it->data == ']'
-		    || it->data == '<' || it->data == '>'
-			|| it->data == '{' || it->data == '('
-			|| it->data == '[' || it->data == '+')
-		{
-			// ignore terminal characters
-			// TODO: string index instead of a bunch of conditions
+		char ch = '\0';
+
+		//if (it->subtokens && !it->subtokens->empty()) {
+		if (it->tag.empty()) {
+			//auto foo = it->subtokens->front().get();
+			auto foo = it->get();
+
+			if (foo.empty()) {
+				std::cerr << __func__ << ": empty token..." << std::endl;
+			}
+
+			else {
+				//auto foo = it->get();
+				ch = foo[0];
+				std::cerr << __func__
+					<< ": Have expr: '" << foo << "': " << ch << std::endl;
+
+				if (ch == ';' || ch == ')'
+				 || ch == '}' || ch == ']'
+				 || ch == '<' || ch == '>'
+				 || ch == '{' || ch == '('
+				 || ch == '[' || ch == '+')
+				{
+					std::cerr << __func__ << ": Ignoring " << ch << std::endl;
+					// ignore terminal characters
+					// TODO: string index instead of a bunch of conditions
+					continue;
+				}
+			}
+		}
+
+		//dump(it);
+
+		//std::string foo = collect(*it->subtokens);
+		/*
+		if (it->get().empty()) {
+			std::cerr << "empty token, continuing..." << std::endl;
+			continue;
+			//throw std::logic_error("blkajsdf;klhjsfh");
+		}
+		*/
+
+		/*
+		auto sub = it->subtokens;
+
+		if (!sub) {
 			continue;
 		}
 
-		if (p == nullptr) {
-			p = compile_expression(ret, it, end);
+		auto temp = collect(*sub);
+		char ch = temp[0];
+		std::cerr << "Have expr: " << temp << ": " << ch << std::endl;
+		*/
 
-		} else if (it->data == '|') {
+
+		std::cerr << __func__ << ": compiling: " << std::endl;
+		dump(it, 1);
+
+		//if (!haveParser) {
+		if (p == nullptr) {
+
+			p = compile_expression(ret, it, end);
+			haveParser = true;
+
+		} else if (ch == '|') {
 			p = p | compile_expression(ret, ++it, end);
 
 		} else {
@@ -291,28 +410,35 @@ parser compile_expressions(cparser& ret,
 	}
 
 	// XXX:
-	p = (p == nullptr)? error_and_abort : p;
+	p = (p == nullptr)? error_nullparser : p;
 	return p;
 }
 
 void compile_rules(cparser& ret, container& tokens) {
 	if (tokens.empty() || !tokens.front().subtokens) {
-		throw "asdfasdfasdf";
+		throw std::logic_error("asdfasdfasdf");
 	}
 
 	for (auto& ruletok : *tokens.front().subtokens) {
+		//std::string& toktag = ruletok.subtokens->front().tag;
 		std::string& toktag = ruletok.subtokens->front().tag;
+		std::cerr << __func__ << ": Have tag " << toktag << std::endl;
 
 		if (toktag == "identifier") {
 			if (!ruletok.subtokens) {
-				throw "asdfasdfasdf";
+				throw std::logic_error("asdfasdfasdf");
 			}
 
 			if (ruletok.subtokens->empty() || !ruletok.subtokens->front().subtokens) {
-				throw "blaserflasdfkj";
+				throw std::logic_error("blaserflasdfkj");
 			}
 
+			//auto foo = collect(*ruletok.subtokens->front().subtokens);
+			//auto foo = ruletok.subtokens->front().subtokens->front().tag;
+			//std::cerr << "Have identifier '" << foo << "'" << std::endl;
+
 			std::string id = collect(*ruletok.subtokens->front().subtokens);
+			std::cerr << __func__ << ": Have identifier '" << id << "'" << std::endl;
 			auto it = ruletok.subtokens->begin();
 			it++; 
 			auto assign_type = it++;
@@ -320,11 +446,16 @@ void compile_rules(cparser& ret, container& tokens) {
 			parser p = compile_expressions(ret, it, ruletok.subtokens->end());
 
 			if (!assign_type->subtokens) {
-				throw "blkajsdfl;kasjdfj";
+				throw std::logic_error("blkajsdfl;kasjdfj");
 			}
 
 			for (auto& tok : *assign_type->subtokens) {
-				switch (tok.data) {
+				if (tok.get().empty()) {
+					//throw std::logic_error("blkasdfiouhrg");
+					continue;
+				}
+
+				switch (tok.get()[0]) {
 					case '*':
 						p = whitewrap(p);
 						break;

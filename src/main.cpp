@@ -18,7 +18,9 @@ void dump_tokens(container& tokens, unsigned indent = 0) {
 			printf("\"%s\"\n", tok.tag.c_str());
 
 		} else {
-			printf("'%c'\n", tok.data);
+			//printf("'%c'\n", tok.data);
+			std::cout << "'" << tok.get() << "'" << '\n';
+			//printf("'%s'\n", tok.get().c_str());
 		}
 
 		if (tok.subtokens) {
@@ -48,15 +50,15 @@ cparser load_parser(const char *fname) {
 	//struct result meh = ebnfish(buf);
 	auto meh = evaluate(ebnfish, buf);
 
+	dump_tokens(meh.tokens);
 	if (!meh.matched) {
-		//debug_trace(meh);
 		throw "asdf foo";
 	}
 
 	return compile_parser(meh.tokens);
 }
 
-parser numberparse(std::string_view v) {
+parser numberparse(void) {
 	return zero_or_one(string_parser("+") | "-")
 		+ one_or_more(codepoint_range('0', '9'));
 }
@@ -64,13 +66,15 @@ parser numberparse(std::string_view v) {
 int main(int argc, char *argv[]) {
 	const char *fname = (argc > 1)? argv[1] : "data/test.par";
 
-	cparser p = load_parser(fname);
 	std::string data = read_file("/dev/stdin");
 	std::string_view foo = data;
+	cparser p = load_parser(fname);
 	//auto meh = p["main"](foo);
 	auto meh = evaluate(p["main"], foo);
+	//auto meh = evaluate(tag("asdf", numberparse()), foo);
 
 	if (meh.matched) {
+		std::cerr << "matched:" << std::endl;
 		dump_tokens(meh.tokens);
 
 	} else {

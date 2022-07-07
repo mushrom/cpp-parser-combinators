@@ -13,25 +13,46 @@ namespace p_comb {
 
 // TODO: would be cool to have this be templated,
 //       so that any iterator type could be used
-//using viewPosition = std::string_view::iterator;
-//using viewPair     = std::pair<viewPosition, viewPosition>;
+using viewPosition = std::string_view::iterator;
+using viewPair     = std::pair<viewPosition, viewPosition>;
 
 struct token;
 typedef std::vector<token> container;
 
 struct token {
-	int32_t data = 0;
+	//int32_t data = 0;
+	viewPair match;
 	std::string tag = "";
 	std::optional<container> subtokens;
+
+	std::string_view get() {
+		auto foo = std::string_view(match.first, match.second);
+		/*
+		std::cout << "Getting: '" << foo << "' "
+			<< "(length: " << foo.size() << ") "
+			<< std::endl;
+			*/
+		return foo;
+		//return std::string_view(match.first, match.second);
+	}
 };
 
 struct parserState {
 	using stackType = std::vector<container>;
 	//using frameType = container::iterator;
-	using frameType = size_t;
+	//using frameType = size_t;
+	struct frameType {
+		size_t   idx;
+		viewPair match;
+		bool     inToken;
+	};
 
 	stackType tokenStack;
 	std::vector<std::string> tagStack;
+
+	viewPair matchBuf;
+	bool havePosition = false;
+	bool ignoring = false;
 
 	// ensure that there's a bottom to the stack, if no tag is ever pushed then
 	// all tokens will end up in this container
@@ -47,53 +68,101 @@ struct parserState {
 	}
 
 	void pushTag(const std::string& tag) {
+		if (ignoring) return;
+
+		//discardToken();
+		clearToken();
 		tokenStack.push_back({});
 		tagStack.push_back(tag);
 	}
 
 	void popTag() {
+		if (ignoring) return;
+
 		if (!tagStack.empty()) {
 			auto& tag = tagStack.back();
 			container& ret = tokenStack.back();
+			clearToken();
 			
 			token t;
 			t.tag = tag;
 			t.subtokens = std::move(ret);
+			//t.match = matchBuf;
 
 			tokenStack.pop_back();
 			tagStack.pop_back();
-			pushToken(t);
+			//pushToken(t);
+			tokenStack.back().push_back(t);
 		}
 	}
 
 	void discardTag() {
 		if (!tagStack.empty()) {
+			//clearToken();
+			discardToken();
 			tagStack.pop_back();
 			tokenStack.pop_back();
 		}
 	}
 
 	frameType capture() {
-		//return tokenStack.back().end() - 1;
-		return tokenStack.back().size();
+		//clearToken();
+		//return tokenStack.back().size();
+		return frameType {
+			.idx     = tokenStack.back().size(),
+			.match   = matchBuf,
+			.inToken = havePosition,
+		};
 	}
 
 	void restore(frameType& frame) {
 		//tokenStack.back().erase(frame + 1, tokenStack.back().end());
 		auto& t = tokenStack.back();
-		if (frame < t.size()) {
-			t.erase(t.begin() + frame, t.end());
+		if (frame.idx < t.size()) {
+			t.erase(t.begin() + frame.idx, t.end());
 			//t.resize(frame);
+			matchBuf     = frame.match;
+			havePosition = frame.inToken;
+			discardToken();
 		}
 	}
 
-	void pushToken(const token& t) {
-		tokenStack.back().push_back(t);
+	void discardToken() {
+		matchBuf = { matchBuf.first - 1, matchBuf.first - 1};
+		havePosition = false;
+	}
+
+	void clearToken() {
+		if (havePosition) {
+			//std::cerr << "got here\n";
+			tokenStack.back().push_back({ .match = matchBuf });
+		}
+
+		discardToken();
+	}
+
+	void pushToken(viewPosition it) {
+		if (ignoring)
+			return;
+
+		//tokenStack.back().push_back({ .match = {it, it + 1} });
+
+		if (havePosition && matchBuf.second == it) {
+			matchBuf.second = it + 1;
+
+		} else {
+			clearToken();
+			matchBuf.first  = it;
+			matchBuf.second = it + 1;
+		}
+
+		havePosition = true;
 	}
 };
 
 struct result {
-	std::string_view next;
+	viewPair next;
+	//std::string_view next;
 	//token::container tokens;
 	bool matched = false;
 	//autolist<int32_t>::ptr next;
@@ -102,19 +171,19 @@ struct result {
 	//std::vector<std::string_view> debug;
 };
 
-#define RESULT_NO_MATCH ((struct result) { "", false })
+#define RESULT_NO_MATCH ((struct result) { {}, false })
 
 struct evalResult {
 	bool      matched;
 	container tokens;
 };
 
-typedef std::function<result (std::string_view, parserState&)> parser;
+typedef std::function<result (viewPair, parserState&)> parser;
 
 static inline
 evalResult evaluate(parser p, std::string_view view) {
 	parserState state;
-	result res = p(view, state);
+	result res = p({view.begin(), view.end()}, state);
 
 	return {
 		res.matched,
