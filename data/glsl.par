@@ -30,11 +30,11 @@ ELSE             *:= "else" ;
 EQ_OP            *:= "==" ;
 EQUAL            *:= "=" ;
 # TODO: check this
-FIELD_SELECTION *:= DOT IDENTIFIER ; 
+FIELD_SELECTION *:= IDENTIFIER ;
 FLAT            *:= "TODO: flat";
 FLOAT           *:= "float" ;
 # TODO: check this, exponent specifier (think I can reuse the json float parser here)
-FLOATCONSTANT   *:= [(PLUS | DASH)] {digit} [DOT [{digit}]] ;
+FLOATCONSTANT   *:= [(PLUS | DASH)] {digit} [DOT [{digit}]] ["f"];
 FOR             *:= "for" ;
 GE_OP           *:= ">=" ;
 HIGH_PRECISION  *:= "highp" ;
@@ -140,28 +140,28 @@ variable_identifier *= identifier;
 
 primary_expression :=
       variable_identifier
-    | INTCONSTANT
-    | UINTCONSTANT
     | FLOATCONSTANT
+    | UINTCONSTANT
+    | INTCONSTANT
     | BOOLCONSTANT
     | (LEFT_PAREN expression RIGHT_PAREN)
     ;
 
 # avoid left recursion
 base_postfix :=
-      primary_expression
-    | function_call
+      function_call
+    | primary_expression
     ;
 
 postfix_op :=
-    (LEFT_BRACKET integer_expression RIGHT_BRACKET)
+      (LEFT_BRACKET integer_expression RIGHT_BRACKET)
     | (DOT FIELD_SELECTION)
     | INC_OP
     | DEC_OP
     ;
 
 postfix_expression :=
-    base_postfix {postfix_op} ;
+    base_postfix [{postfix_op}] [DOT function_call_generic];
 
 integer_expression :=
     expression
@@ -171,9 +171,13 @@ function_call :=
     function_call_or_method
     ;
 
+#function_call_or_method :=
+#      function_call_generic
+#    | (postfix_expression DOT function_call_generic)
+#    ;
+
 function_call_or_method :=
       function_call_generic
-    | (postfix_expression DOT function_call_generic)
     ;
 
 function_call_generic :=
@@ -185,10 +189,18 @@ function_call_header_no_parameters :=
     function_call_header [VOID]
     ;
 
+#function_call_header_with_parameters :=
+#      (function_call_header assignment_expression)
+#    | (function_call_header_with_parameters COMMA assignment_expression)
+#    ;
+
 function_call_header_with_parameters :=
-      (function_call_header assignment_expression)
-    | (function_call_header_with_parameters COMMA assignment_expression)
+      (function_call_header function_call_argument_list)
     ;
+
+function_call_argument_list :=
+	assignment_expression [COMMA function_call_argument_list]
+	;
 
 function_call_header :=
     function_identifier LEFT_PAREN
@@ -248,11 +260,11 @@ inclusive_or_expression :=
     ;
 
 logical_and_expression :=
-    inclusive_or_expression [AND_OP inclusive_or_expression]
+    inclusive_or_expression [AND_OP logical_and_expression]
     ;
 
 logical_xor_expression :=
-    logical_xor_expression [XOR_OP logical_and_expression]
+    logical_and_expression [XOR_OP logical_xor_expression]
     ;
 
 logical_or_expression :=
@@ -264,8 +276,8 @@ conditional_expression :=
     ;
 
 assignment_expression :=
-    conditional_expression
-    | (unary_expression assignment_operator assignment_expression)
+    (unary_expression assignment_operator assignment_expression)
+    | conditional_expression
     ;
 
 assignment_operator :=
@@ -306,12 +318,20 @@ function_prototype :=
 
 # TODO: double check this
 function_declarator :=
-    function_header_with_parameters
-    function_header
+      function_header_with_parameters
+    | (function_header [VOID])
     ;
 
+#function_header_with_parameters :=
+#    function_header [COMMA function_header_with_parameters] parameter_declaration
+#    ;
+
 function_header_with_parameters :=
-    function_header [COMMA function_header_with_parameters] parameter_declaration
+    function_header function_parameter_list
+    ;
+
+function_parameter_list :=
+    parameter_declaration [COMMA function_parameter_list]
     ;
 
 function_header :=
@@ -322,11 +342,16 @@ parameter_declarator :=
     type_specifier IDENTIFIER [LEFT_BRACKET constant_expression RIGHT_BRACKET]
     ;
 
+#parameter_declaration :=
+#      (parameter_type_qualifier parameter_qualifier parameter_declarator)
+#    | (parameter_type_qualifier parameter_qualifier parameter_type_specifier)
+#    | (parameter_qualifier parameter_declarator)
+#    | (parameter_qualifier parameter_type_specifier)
+#    ;
+
 parameter_declaration :=
-      (parameter_type_qualifier parameter_qualifier parameter_declarator)
-    | (parameter_qualifier parameter_declarator)
-    | (parameter_type_qualifier parameter_qualifier parameter_type_specifier)
-    | (parameter_qualifier parameter_type_specifier)
+    [parameter_type_qualifier] parameter_qualifier
+        (parameter_declarator | parameter_type_qualifier)
     ;
 
 # optional
@@ -380,16 +405,16 @@ parameter_type_qualifier :=
     ;
 
 type_qualifier :=
-    storage_qualifier
-    | layout_qualifier
-    | (layout_qualifier storage_qualifier)
+      (layout_qualifier storage_qualifier)
     | (interpolation_qualifier [storage_qualifier])
-    | (invariant_qualifier storage_qualifier)
     | (invariant_qualifier interpolation_qualifier storage_qualifier)
+    | (invariant_qualifier storage_qualifier)
+    | layout_qualifier
+    | storage_qualifier
     ;
 
 storage_qualifier :=
-    CONST
+      CONST
     | IN
     | OUT
     | (CENTROID IN)
@@ -399,7 +424,7 @@ storage_qualifier :=
 
 type_specifier :=
       type_specifier_no_prec
-    | precision_qualifier type_specifier_no_prec
+    | (precision_qualifier type_specifier_no_prec)
     ;
 
 type_specifier_no_prec :=
@@ -524,8 +549,12 @@ switch_statement :=
     ;
 
 # switch_statement_list can be empty
+##switch_statement_list :=
+#    [statement_list]
+#    ;
+
 switch_statement_list :=
-    [statement_list]
+    statement [statement_list]
     ;
 
 case_label :=
@@ -558,7 +587,7 @@ jump_statement :=
     ;
 
 translation_unit :=
-    external_declaration [translation_unit]
+	{external_declaration}
     ;
 
 external_declaration :=
@@ -570,4 +599,6 @@ function_definition :=
     function_prototype compound_statement_no_new_scope
     ;
 
-main := translation_unit ;
+main := translation_unit EOF;
+#main := translation_unit;
+#main := function_prototype;
