@@ -40,7 +40,7 @@ GE_OP           *:= ">=" ;
 HIGH_PRECISION  *:= "highp" ;
 IDENTIFIER      *:= identifier ;
 IF              *:= "if";
-IN              *:= "in";
+IN              *:= "in" whitespace;
 INC_OP          *:= "+=";
 INOUT           *:= "inout";
 INT             *:= "int" ;
@@ -362,17 +362,25 @@ parameter_qualifier :=
 parameter_type_specifier :=
     type_specifier ;
 
+#init_declarator_list :=
+#    single_declaration [
+#          [COMMA IDENTIFIER ((EQUAL initializer) | init_declarator_list)]
+#        | [LEFT_BRACKET INTCONSTANT RIGHT_BRACKET [EQUAL initializer]]
+#    ]
+#    ;
+
 init_declarator_list :=
-    single_declaration (
-          [COMMA IDENTIFIER ((EQUAL initializer) | init_declarator_list)]
-        | [LEFT_BRACKET [constant_expression] RIGHT_BRACKET [EQUAL initializer]]
-    )
+    single_declaration [init_declarator_asdf]
     ;
+
+init_declarator_asdf :=
+	COMMA IDENTIFIER [LEFT_BRACKET constant_expression RIGHT_BRACKET] [EQUAL initializer]
+	;
 
 single_declaration :=
     fully_specified_type
-        [IDENTIFIER [LEFT_BRACKET [constant_expression] RIGHT_BRACKET]
-                    [EQUAL initializer]]
+        [IDENTIFIER [LEFT_BRACKET constant_expression RIGHT_BRACKET]]
+		            [EQUAL initializer]
     ;
 
 fully_specified_type :=
@@ -469,8 +477,11 @@ struct_declaration_list :=
     struct_declaration [struct_declaration_list]
     ;
 
+#struct_declaration :=
+#    [type_qualifier] type_specifier struct_declaration_list SEMICOLON
+#    ;
 struct_declaration :=
-    [type_qualifier] type_specifier struct_declaration_list SEMICOLON
+    [type_qualifier] type_specifier struct_declarator_list SEMICOLON
     ;
 
 struct_declarator_list :=
