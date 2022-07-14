@@ -4,36 +4,9 @@
 #include <map>
 #include <sstream>
 #include <fstream>
+#include <cstring>
 
 using namespace p_comb;
-
-void dump_tokens(container& tokens, unsigned indent = 0) {
-	for (auto& tok : tokens) {
-		for (unsigned i = 0; i < indent; i++) {
-			std::cout << "   :";
-		}
-
-		//printf("token %u : \"%s\" ('%c')\n", tok.data, tok.tag.c_str(), tok.data);
-		if (tok.tag.size() > 0) {
-			printf("\"%s\"\n", tok.tag.c_str());
-
-		} else {
-			printf("'%c'\n", tok.data);
-		}
-
-		if (tok.subtokens) {
-			dump_tokens(*tok.subtokens, indent + 1);
-		}
-	}
-}
-
-void debug_trace(struct result& res) {
-	/*
-	for (auto& dbg : res.debug) {
-		std::cout << " => " << dbg << "\n";
-	}
-	*/
-}
 
 std::string read_file(const char *filename) {
 	std::ifstream f(filename);
@@ -56,13 +29,151 @@ cparser load_parser(const char *fname) {
 	return compile_parser(meh.tokens);
 }
 
+void dump_tokens_tree(container& tokens, unsigned indent = 0) {
+	for (auto& tok : tokens) {
+		for (unsigned i = 0; i < indent; i++) {
+			std::cout << "   :";
+		}
+
+		//printf("token %u : \"%s\" ('%c')\n", tok.data, tok.tag.c_str(), tok.data);
+		if (tok.tag.size() > 0) {
+			printf("\"%s\"\n", tok.tag.c_str());
+
+		} else {
+			printf("'%c'\n", tok.data);
+		}
+
+		if (tok.subtokens) {
+			dump_tokens_tree(*tok.subtokens, indent + 1);
+		}
+	}
+}
+
+// output eseentially S-exps but as valid json
+void dump_tokens_json(container& tokens, unsigned indent = 0) {
+	printf("[");
+	for (auto it = tokens.begin(); it != tokens.end(); it++) {
+		auto tok = *it;
+
+		if (tok.tag.size() > 0) {
+			printf("[");
+			printf("\"%s\"", tok.tag.c_str());
+			printf(",");
+
+			if (tok.subtokens) {
+				dump_tokens_json(*tok.subtokens, indent + 1);
+			} else {
+				printf("null");
+			}
+			printf("]");
+
+		} else {
+			if (tok.data) {
+				// assume there's no lower-level data
+				printf(" \"%c\"", tok.data);
+			}
+		}
+
+
+		if (it + 1 != tokens.end()) {
+			printf(",");
+		}
+	}
+	printf("]");
+}
+
+void dump_tokens_sexps(container& tokens, unsigned indent = 0) {
+	printf("(");
+	for (auto it = tokens.begin(); it != tokens.end(); it++) {
+		auto tok = *it;
+
+		if (tok.tag.size() > 0) {
+			printf("(");
+			printf("%s", tok.tag.c_str());
+			printf(" . ");
+
+			if (tok.subtokens) {
+				dump_tokens_sexps(*tok.subtokens, indent + 1);
+			} else {
+				printf("'()");
+			}
+			printf(")");
+
+		} else {
+			if (tok.data) {
+				// assume there's no lower-level data
+				printf(" \"%c\"", tok.data);
+			}
+		}
+	}
+	printf(")");
+}
+
+void debug_trace(struct result& res) {
+	/*
+	for (auto& dbg : res.debug) {
+		std::cout << " => " << dbg << "\n";
+	}
+	*/
+}
+
+
 parser numberparse(std::string_view v) {
 	return zero_or_one(string_parser("+") | "-")
 		+ one_or_more(codepoint_range('0', '9'));
 }
 
 int main(int argc, char *argv[]) {
-	const char *fname = (argc > 1)? argv[1] : "data/test.par";
+	enum modes {
+		outputTree,
+		outputJson,
+		outputSexps,
+	} mode;
+
+	int argstart = 1;
+	for (int i = 1; i < argc; i++) {
+		if (argv[i][0] != '-') {
+			argstart = i;
+			break;
+		}
+
+		switch (argv[i][1]) {
+			case 'j':
+				mode = outputJson;
+				break;
+
+			case 's':
+				mode = outputSexps;
+				break;
+
+			case 't':
+				mode = outputTree;
+				break;
+
+			case 'h':
+				printf("Usage: [-jst] [parser specification]");
+				break;
+
+			case '-':
+				     if (strcmp(argv[i] + 2, "json")  == 0) mode = outputJson;
+				else if (strcmp(argv[i] + 2, "sexps") == 0) mode = outputSexps;
+				else if (strcmp(argv[i] + 2, "tree")  == 0) mode = outputTree;
+				else fprintf(stderr, "unknown option '%c' (try -h for help)\n");
+				break;
+
+			default:
+				fprintf(stderr, "unknown option '%c' (try -h for help)\n", argv[i][1]);
+				break;
+		}
+	}
+
+	if (argstart >= argc) {
+		printf("Missing parser specification (try -h for help)");
+		return 1;
+	}
+
+	//const char *fname = (argc > 1)? argv[1] : "data/test.par";
+	const char *fname = argv[argstart];
 
 	cparser p = load_parser(fname);
 	std::string data = read_file("/dev/stdin");
@@ -71,7 +182,20 @@ int main(int argc, char *argv[]) {
 	auto meh = evaluate(p["main"], foo);
 
 	if (meh.matched) {
-		dump_tokens(meh.tokens);
+		switch (mode) {
+			case outputJson:
+				dump_tokens_json(meh.tokens);
+				break;
+
+			case outputSexps:
+				dump_tokens_sexps(meh.tokens);
+				break;
+
+			case outputTree:
+			default:
+				dump_tokens_tree(meh.tokens);
+				break;
+		}
 
 	} else {
 		//debug_trace(meh);
