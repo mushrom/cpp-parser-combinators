@@ -20,7 +20,7 @@ COMMA            *:= "," ;
 CONST            *:= "const" ;
 CONTINUE         *:= "continue" ;
 DASH             *:= "-" ;
-DEC_OP           *:= "-=" ;
+DEC_OP           *:= "--" ;
 DEFAULT          *:= "default" ;
 DISCARD          *:= "discard" ;
 DIV_ASSIGN       *:= "/=" ;
@@ -34,14 +34,16 @@ FIELD_SELECTION *:= IDENTIFIER ;
 FLAT            *:= "TODO: flat";
 FLOAT           *:= "float" ;
 # TODO: check this, exponent specifier (think I can reuse the json float parser here)
-FLOATCONSTANT   *:= [(PLUS | DASH)] {digit} [DOT [{digit}]] ["f"];
+FLOATCONSTANT   *:= [(PLUS | DASH)] (({digit} DOT {digit})
+                                     | (DOT {digit})
+                                     | ({digit} DOT)) ["f"];
 FOR             *:= "for" ;
 GE_OP           *:= ">=" ;
 HIGH_PRECISION  *:= "highp" ;
 IDENTIFIER      *:= identifier ;
 IF              *:= "if";
 IN              *:= "in" whitespace;
-INC_OP          *:= "+=";
+INC_OP          *:= "++";
 INOUT           *:= "inout";
 INT             *:= "int" ;
 # TODO: check this
@@ -59,7 +61,7 @@ LEFT_ANGLE      *:= "<" ;
 # TODO: check this
 LEFT_ASSIGN      *:= "=" ;
 LEFT_BRACE       *:= "{" ;
-LEFT_BRACKET     *:= "]" ;
+LEFT_BRACKET     *:= "[" ;
 LEFT_OP          *:= "<<" ;
 LEFT_PAREN       *:= "(" ;
 LE_OP            *:= "<=" ;
@@ -213,9 +215,9 @@ function_identifier :=
     ;
 
 unary_expression :=
-       postfix_expression
-    | (INC_OP unary_expression)
+      (INC_OP unary_expression)
     | (DEC_OP unary_expression)
+    | postfix_expression
     | (unary_operator unary_expression)
     ;
 
@@ -239,7 +241,7 @@ shift_expression :=
     ;
 
 relational_expression :=
-    shift_expression [(LEFT_ANGLE | RIGHT_ANGLE | LE_OP | GE_OP)
+    shift_expression [(LE_OP | GE_OP | LEFT_ANGLE | RIGHT_ANGLE)
                       relational_expression]
     ;
 
@@ -276,7 +278,7 @@ conditional_expression :=
     ;
 
 assignment_expression :=
-    (unary_expression assignment_operator assignment_expression)
+      (unary_expression assignment_operator assignment_expression)
     | conditional_expression
     ;
 
@@ -370,16 +372,16 @@ parameter_type_specifier :=
 #    ;
 
 init_declarator_list :=
-    single_declaration [init_declarator_asdf]
+    single_declaration [{init_declarator_asdf}]
     ;
 
 init_declarator_asdf :=
-	COMMA IDENTIFIER [LEFT_BRACKET constant_expression RIGHT_BRACKET] [EQUAL initializer]
+	COMMA IDENTIFIER [LEFT_BRACKET [constant_expression] RIGHT_BRACKET] [EQUAL initializer]
 	;
 
 single_declaration :=
     fully_specified_type
-        [IDENTIFIER [LEFT_BRACKET constant_expression RIGHT_BRACKET]]
+        [IDENTIFIER [LEFT_BRACKET [constant_expression] RIGHT_BRACKET]]
 		            [EQUAL initializer]
     ;
 
