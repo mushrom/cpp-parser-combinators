@@ -98,6 +98,9 @@ RIGHT_BRACKET         *:= "]" ;
 RIGHT_OP              *:= ">>" ;
 RIGHT_PAREN           *:= ")";
 SAMPLER2D             *:= "sampler2D" ;
+# TODO: pretty sure this is a core opengl feature, not part of gles3,
+#       maybe implement full 3.3/4.3/maybe 4.5-ish core parsing?
+SAMPLER2DMS           *:= "sampler2DMS" ;
 # TODO: check
 SAMPLER2DARRAY        *:= "sampler2DArray" ;
 SAMPLER2DARRAYSHADOW  *:= "sampler2DArrayShadow" ;
@@ -455,6 +458,7 @@ type_specifier_nonarray :=
     | MAT2X2 | MAT2X3 | MAT2X4
     | MAT3X2 | MAT3X3 | MAT3X4
     | MAT4X2 | MAT4X3 | MAT4X4
+    | SAMPLER2DMS
     | SAMPLER2D | SAMPLER3D | SAMPLERCUBE
     | SAMPLER2DSHADOW | SAMPLERCUBESHADOW | SAMPLER2DARRAY
     | SAMPLER2DARRAYSHADOW
