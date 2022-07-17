@@ -22,7 +22,7 @@ typedef std::vector<token> container;
 struct token {
 	int32_t data = 0;
 	std::string tag = "";
-	std::optional<container> subtokens;
+	container subtokens;
 };
 
 struct parserState {
@@ -184,6 +184,9 @@ inline parser uppercase = string_parser("A")|"B"|"C"|"D"|"E"|"F"|"G"|"H"
 
 inline parser letter = lowercase | uppercase;
 
+void dump_tokens_tree(container& tokens, unsigned indent = 0);
+void dump_tokens_json(container& tokens, unsigned indent = 0);
+void dump_tokens_sexps(container& tokens, unsigned indent = 0);
 
 // namespace p_comb
 }

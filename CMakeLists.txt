@@ -11,4 +11,6 @@ set(PROJECT_SOURCE
 
 include_directories(include)
 add_library(ParserLib ${PROJECT_SOURCE})
+target_include_directories(ParserLib PUBLIC include)
+
 add_executable(MainTest ${PROJECT_SOURCE} src/main.cpp)

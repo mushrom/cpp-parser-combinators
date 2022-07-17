@@ -107,9 +107,7 @@ std::string collect(container& tokens) {
 
 	for (auto tok : tokens) {
 		if (tok.tag == "string-literal") {
-			if (auto sub = tok.subtokens) {
-				ret += unescape(collect(*sub));
-			}
+            ret += unescape(collect(tok.subtokens));
 		}
 
 		// handle base characters
@@ -142,23 +140,19 @@ struct result uninitialized_abort(std::string_view ptr, parserState& state) {
 void initialize_names(cparser& ret, container& tokens) {
 	assert(tokens.front().tag == "ebnfish");
 
-	if (auto sub = tokens.front().subtokens) {
-		for (auto& ruletok : *sub) {
-			assert(ruletok.tag == "ebnfish-rule");
+    for (auto& ruletok : tokens.front().subtokens) {
+        assert(ruletok.tag == "ebnfish-rule");
 
-			if (auto rule = ruletok.subtokens) {
-				std::string& tag = rule->front().tag;
+        auto& rule = ruletok.subtokens;
+        std::string& tag = rule.front().tag;
 
-				if (tag == "identifier") {
-					if (auto rulesub = rule->front().subtokens) {
-						std::string s = collect(*rulesub);
+        if (tag == "identifier") {
+            // TODO: check if front is valid
+            std::string s = collect(rule.front().subtokens);
 
-						// initialize to a dummy rule to begin with 
-						ret[s] = uninitialized_abort;
-					}
-				}
-			}
-		}
+            // initialize to a dummy rule to begin with 
+            ret[s] = uninitialized_abort;
+        }
 	}
 }
 
@@ -174,11 +168,11 @@ parser compile_expression(cparser& ret,
                           container::iterator end)
 {
 	if (it->tag == "identifier") {
-		if (!it->subtokens) {
+		if (it->subtokens.empty()) {
 			throw "asdf";
 		}
 
-		std::string id = collect(*it->subtokens);
+		std::string id = collect(it->subtokens);
 
 		if (ret.find(id) == ret.end()) {
 			std::cerr << "WARNING: reference to undefined rule \""
@@ -209,24 +203,24 @@ parser compile_expression(cparser& ret,
 	}
 
 	if (it->tag == "ebnfish-string") {
-		if (!it->subtokens) {
+		if (it->subtokens.empty()) {
 			throw "asdf";
 		}
 
-		std::string lit = collect(*it->subtokens);
+		std::string lit = collect(it->subtokens);
 		return string_parser(lit);
 	}
 
 	if (it->tag == "ebnfish-expr") {
-		if (!it->subtokens) {
+		if (it->subtokens.empty()) {
 			throw "asdfasdf";
 		}
 
 		parser temp = compile_expressions(ret,
-		                                  it->subtokens->begin(),
-		                                  it->subtokens->end());
+		                                  it->subtokens.begin(),
+		                                  it->subtokens.end());
 
-		switch (it->subtokens->front().data) {
+		switch (it->subtokens.front().data) {
 			case '{': temp = one_or_more(temp); break;
 			case '[': temp = zero_or_one(temp); break;
 			case '+': temp = zero_or_more(temp); break;
@@ -238,12 +232,12 @@ parser compile_expression(cparser& ret,
 	}
 
 	if (it->tag == "ebnfish-blacklist") {
-		if (!it->subtokens) {
+		if (it->subtokens.empty()) {
 			throw "blarg";
 		}
 
-		container meh(std::next(it->subtokens->begin()),
-		              std::prev(it->subtokens->end()));
+		container meh(std::next(it->subtokens.begin()),
+		              std::prev(it->subtokens.end()));
 		std::string chrs = unescape(collect(meh));
 
 		std::cerr << "have blacklist with " << chrs << std::endl;
@@ -296,34 +290,34 @@ parser compile_expressions(cparser& ret,
 }
 
 void compile_rules(cparser& ret, container& tokens) {
-	if (tokens.empty() || !tokens.front().subtokens) {
+	if (tokens.empty() || tokens.front().subtokens.empty()) {
 		throw "asdfasdfasdf";
 	}
 
-	for (auto& ruletok : *tokens.front().subtokens) {
-		std::string& toktag = ruletok.subtokens->front().tag;
+	for (auto& ruletok : tokens.front().subtokens) {
+		std::string& toktag = ruletok.subtokens.front().tag;
 
 		if (toktag == "identifier") {
-			if (!ruletok.subtokens) {
+			if (ruletok.subtokens.empty()) {
 				throw "asdfasdfasdf";
 			}
 
-			if (ruletok.subtokens->empty() || !ruletok.subtokens->front().subtokens) {
+			if (ruletok.subtokens.empty() || ruletok.subtokens.front().subtokens.empty()) {
 				throw "blaserflasdfkj";
 			}
 
-			std::string id = collect(*ruletok.subtokens->front().subtokens);
-			auto it = ruletok.subtokens->begin();
+			std::string id = collect(ruletok.subtokens.front().subtokens);
+			auto it = ruletok.subtokens.begin();
 			it++; 
 			auto assign_type = it++;
 
-			parser p = compile_expressions(ret, it, ruletok.subtokens->end());
+			parser p = compile_expressions(ret, it, ruletok.subtokens.end());
 
-			if (!assign_type->subtokens) {
+			if (assign_type->subtokens.empty()) {
 				throw "blkajsdfl;kasjdfj";
 			}
 
-			for (auto& tok : *assign_type->subtokens) {
+			for (auto& tok : assign_type->subtokens) {
 				switch (tok.data) {
 					case '*':
 						p = whitewrap(p);

@@ -279,5 +279,83 @@ parser operator>>(parser a, std::string b) {
 	return a + ignore_whitespace + string_parser(b);
 }
 
+void dump_tokens_tree(container& tokens, unsigned indent) {
+	for (auto& tok : tokens) {
+		for (unsigned i = 0; i < indent; i++) {
+			std::cout << "   :";
+		}
+
+		//printf("token %u : \"%s\" ('%c')\n", tok.data, tok.tag.c_str(), tok.data);
+		if (tok.tag.size() > 0) {
+			printf("\"%s\"\n", tok.tag.c_str());
+
+		} else {
+			printf("'%c'\n", tok.data);
+		}
+
+		dump_tokens_tree(tok.subtokens, indent + 1);
+	}
+}
+
+// output eseentially S-exps but as valid json
+void dump_tokens_json(container& tokens, unsigned indent) {
+	printf("[");
+	for (auto it = tokens.begin(); it != tokens.end(); it++) {
+		auto tok = *it;
+
+		if (tok.tag.size() > 0) {
+			printf("[");
+			printf("\"%s\"", tok.tag.c_str());
+			printf(",");
+
+			if (!tok.subtokens.empty()) {
+				dump_tokens_json(tok.subtokens, indent + 1);
+			} else {
+				printf("null");
+			}
+			printf("]");
+
+		} else {
+			if (tok.data) {
+				// assume there's no lower-level data
+				printf(" \"%c\"", tok.data);
+			}
+		}
+
+
+		if (it + 1 != tokens.end()) {
+			printf(",");
+		}
+	}
+	printf("]");
+}
+
+void dump_tokens_sexps(container& tokens, unsigned indent) {
+	printf("(");
+	for (auto it = tokens.begin(); it != tokens.end(); it++) {
+		auto tok = *it;
+
+		if (tok.tag.size() > 0) {
+			printf("(");
+			printf("%s", tok.tag.c_str());
+			printf(" . ");
+
+			if (!tok.subtokens.empty()) {
+				dump_tokens_sexps(tok.subtokens, indent + 1);
+			} else {
+				printf("'()");
+			}
+			printf(")");
+
+		} else {
+			if (tok.data) {
+				// assume there's no lower-level data
+				printf(" \"%c\"", tok.data);
+			}
+		}
+	}
+	printf(")");
+}
+
 // namespace p_comb
 }
